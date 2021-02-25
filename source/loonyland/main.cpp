@@ -12,6 +12,7 @@
 #include "title.h"
 #include "options.h"
 #include "badge.h"
+#include "randomizer.h"
 #include "log.h"
 #include "appdata.h"
 
@@ -99,6 +100,10 @@ TASK(int) main(int argc, char *argv[])
 				break;
 			case MENU_BADGES:	// badge menu
 				AWAIT BadgeMenu(mainmgl);
+				SetSongRestart(0);
+				break;
+			case MENU_RANDOMIZER: //Randomizer settings
+				AWAIT RandomizerMenu(mainmgl);
 				SetSongRestart(0);
 				break;
 
