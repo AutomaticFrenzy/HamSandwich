@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <limits.h>
 #include <memory>
+#include <iostream>
 
 #include <SDL.h>
 #include <SDL_mixer.h>
@@ -307,9 +308,13 @@ void JamulSoundPurge(void)
 
 void GoPlaySound(int num,long pan,long vol,int flags,int priority)
 {
+	if (num == 13){ //SND_LOONYSHOT
+		std::cout << "num:" << num << " pan:" <<pan << " vol:" << vol << "flags" <<flags << " priority" <<priority << "sndVol" << sndVolume << "both" << vol+sndVolume << "\n" ;
+	}
 	if(!soundIsOn)
 		return;
 	JamulSoundPlay(num,pan,vol,flags,priority);
+
 }
 
 void JamulSoundVolume(int v)
