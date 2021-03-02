@@ -96,7 +96,7 @@ byte UpdateOptionsMenu(int *lastTime,MGLDraw *mgl)
 							MakeNormalSound(SND_MENUSELECT);
 							// diffy
 							opt.difficulty--;
-							if(opt.difficulty>4)
+							if(opt.difficulty>5)
 								opt.difficulty=0;
 							break;
 					}
@@ -121,8 +121,8 @@ byte UpdateOptionsMenu(int *lastTime,MGLDraw *mgl)
 							MakeNormalSound(SND_MENUSELECT);
 							// diffy
 							opt.difficulty++;
-							if(opt.difficulty>4)
-								opt.difficulty=4;
+							if(opt.difficulty>5)
+								opt.difficulty=5;
 							break;
 					}
 				}
@@ -146,7 +146,7 @@ byte UpdateOptionsMenu(int *lastTime,MGLDraw *mgl)
 							MakeNormalSound(SND_MENUSELECT);
 							// diffy
 							opt.difficulty++;
-							if(opt.difficulty==5)
+							if(opt.difficulty==6)
 								opt.difficulty=0;
 							break;
 						case 3:
@@ -357,7 +357,7 @@ void RenderControls(int x,int y)
 void RenderOptionsMenu(MGLDraw *mgl)
 {
 	char onoff[3][8]={"Off","On"};
-	char diffy[5][18]={"Beginner","Normal","Challenge","Mad","Loony"};
+	char diffy[6][18]={"Beginner","Normal","Challenge","Mad","Loony","Rando Special"};
 
 	int wid;
 	byte* pos;
@@ -439,7 +439,7 @@ void LoadOptions(void)
 		opt.joyCtrl[0]=0;
 		opt.joyCtrl[1]=1;
 
-		opt.difficulty=1;		// default to Normal
+		opt.difficulty=5;		// default to Rando Special
 		opt.helpOn=1;
 
 		for(i=0;i<40;i++)
