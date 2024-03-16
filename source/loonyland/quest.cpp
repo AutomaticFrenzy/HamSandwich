@@ -2085,9 +2085,16 @@ void DoChatAction(byte a)
 			break;
 		case 30:
 			// get the helper bat
-			PlayerSetVar(VAR_HELPERBAT,1);
 			PlayerSetVar(VAR_QUESTDONE+QUEST_FARLEY,1);
-			player.fireFlags|=FF_HELPER|FF_HELPERHERE;
+			if (player.worldNum == WORLD_RANDOMIZER)
+			{
+				GiveRandoItem(11);
+			}
+			else
+			{
+				player.fireFlags |= FF_HELPER | FF_HELPERHERE;
+				PlayerSetVar(VAR_HELPERBAT, 1);
+			}
 			break;
 		case 31:
 			// assign bat quest

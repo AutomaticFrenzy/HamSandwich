@@ -7,33 +7,43 @@
 #include <string>
 #include <set>
 
-#define MAX_SEED_LENGTH 11
-#define R_NUM_LOCATIONS 105
-
 TASK(void) RandomizerMenu(MGLDraw *mgl);
 
+#define CURSOR_RANDOSEED	0
+#define CURSOR_SEEDENTRY	1
+#define CURSOR_GENERATE		2
+#define CURSOR_PLAY			3
+#define CURSOR_EXIT			4
+#define CURSOR_DIFFICULTY	5
+#define CURSOR_COMPLETION	6
+
+
+#define CURSOR_START	0
+#define CURSOR_END		6
+
+#define MAX_SEED_LENGTH 11
+#define R_NUM_LOCATIONS 106
 
 struct rItem
 {
 	/* data */
 	//int randId;
-	int itemId;
-	int playerVarId;
-	std::string itemName;
+	int itemId = 0;
+	int playerVarId = 0;
+	std::string itemName = "";
 };
 
 struct location
 {
 	/* data */
 	//int randId;
-	bool isQuest;
-	std::string mapName;
-	int mapId, xcoord, ycoord;
-	int s1, s2;
-	std::string description;
+	bool isQuest = false;
+	std::string mapName = 0;
+	int mapId, xcoord, ycoord = 0;
+	int s1, s2 = 0;
+	std::string description = "";
 	std::function<bool(std::set<int> inv)> requirements;
 	rItem item;
-	//item newItem;
 };
 
 

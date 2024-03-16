@@ -35,17 +35,7 @@ bool generated = false;
 //auto rng = std::default_random_engine(std::random_device{}());
 auto rng = std::minstd_rand0(std::random_device{}());
 
-#define CURSOR_RANDOSEED	0
-#define CURSOR_SEEDENTRY	1
-#define CURSOR_GENERATE		2
-#define CURSOR_PLAY			3
-#define CURSOR_EXIT			4
-#define CURSOR_DIFFICULTY	5
-#define CURSOR_COMPLETION	6
 
-
-#define CURSOR_START	0
-#define CURSOR_END		6
 
 
 location basic_locations[R_NUM_LOCATIONS] = {
@@ -153,7 +143,8 @@ location basic_locations[R_NUM_LOCATIONS] = {
 	{true, "The Rescue", 7, 0, 0, 0, 0, "The Rescue", [](const std::set<int>& inv) { return HaveLightSource(inv) && CanEnterRockyCliffs(inv); }},
 	{true, "Tree Trimming", 8, 0, 0, 0, 0, "Tree Trimming", [](const std::set<int>& inv) { return true; }},
 	{true, "Witch Mushrooms", 9, 0, 0, 0, 0, "Witch Mushrooms", [](const std::set<int>& inv) { return HaveAllMushrooms(inv); }},
-	{true, "Zombie Stomp", 10, 0, 0, 0, 0, "Zombie Stomp", [](const std::set<int>& inv) { return CanCleanseCrypts(inv); }}};
+	{true, "Zombie Stomp", 10, 0, 0, 0, 0, "Zombie Stomp", [](const std::set<int>& inv) { return CanCleanseCrypts(inv); }},
+	{true, "A True Hero", 11, 0, 0, 0, 0, "A True Hero", [](const std::set<int>& inv) { return HaveLightSource(inv) && CanEnterRockyCliffs(inv) && inv.count(VAR_FERTILIZER); }}};
 
 
 rItem itemList[R_NUM_LOCATIONS] = {
@@ -262,6 +253,7 @@ rItem itemList[R_NUM_LOCATIONS] = {
 	{ITM_LANTERN, VAR_LANTERN, "Lantern"},
 	{ITM_REFLECTGEM, VAR_REFLECT, "Reflect"},
 	{ITM_SILVERSLING, VAR_SILVERSLING, "Silver Sling"},
+	{ITM_FARLEY, VAR_HELPERBAT, "Farley" },
 };
 
 template<class RandomIt, class URBG>

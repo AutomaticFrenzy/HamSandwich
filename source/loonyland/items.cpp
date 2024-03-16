@@ -152,7 +152,8 @@ item_t itemInfo[MAX_ITMS]={
 	{2, 0, 11, 11, IF_GET | IF_SHADOW | IF_GLOW},	//lantern 
 	{2, 0, 12, 12, IF_GET | IF_SHADOW | IF_GLOW},	//reflect gem
 	{2, 0, 13, 13, IF_GET | IF_SHADOW},	//silversling
-	{2, 0, 14, 14, IF_GET | IF_SHADOW}	//stick 
+	{2, 0, 14, 14, IF_GET | IF_SHADOW},	//stick
+	{2, 128, 15, 21, IF_GET | IF_SHADOW}	//farley
 };
 
 sprite_set_t *itmSpr[3];
@@ -170,6 +171,7 @@ void ExitItems(void)
 {
 	delete itmSpr[0];
 	delete itmSpr[1];
+	delete itmSpr[2];
 }
 
 char *WeaponName(byte w)

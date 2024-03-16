@@ -1066,7 +1066,7 @@ byte PlayerGetItem(byte itm,int x,int y)
 				}
 				player.gemsGotten+=100;
 				BadgeCheck(BE_GEMSUP,0,curMap);
-				NewBigMessage("100 Gems!",90);
+				NewBigMessage("100 GEMS!",90);
 				MakeNormalSound(SND_BIGGEMGET);
 				break;
 			case ITM_SUPERGEM:
@@ -1129,44 +1129,49 @@ byte PlayerGetItem(byte itm,int x,int y)
 				break;
 			case ITM_CAT:
 				MakeRingParticle(goodguy->x,goodguy->y,0,32,100);
-				NewBigMessage("CAT OBTAIN!",90);
+				NewBigMessage("Cat!",90);
 				MakeNormalSound(SND_POWERUP);
 				break;
 			case ITM_BOOTS:
 				MakeRingParticle(goodguy->x,goodguy->y,0,32,100);
-				NewBigMessage("MUD BOOTS!",90);
+				NewBigMessage("Mud Boots!",90);
 				MakeNormalSound(SND_POWERUP);
 				break;
 			case ITM_FERTILIZER:
 				MakeRingParticle(goodguy->x,goodguy->y,0,32,100);
-				NewBigMessage("FERTILIZER!",90);
+				NewBigMessage("Fertilizer!",90);
 				MakeNormalSound(SND_POWERUP);
 				break;
 			case ITM_GHOSTPOTION:
 			case ITM_POTION:
 				MakeRingParticle(goodguy->x,goodguy->y,0,32,100);
-				NewBigMessage("GHOST SLAYING POTION!",90);
+				NewBigMessage("Ghost Slaying Potion!",90);
 				MakeNormalSound(SND_POWERUP);
 				break;
 			case ITM_LANTERN:
 				MakeRingParticle(goodguy->x,goodguy->y,0,32,100);
-				NewBigMessage("LANTERN!",90);
+				NewBigMessage("Lantern!",90);
 				MakeNormalSound(SND_POWERUP);
 				break;
 			case ITM_REFLECTGEM:
 				MakeRingParticle(goodguy->x,goodguy->y,0,32,100);
-				NewBigMessage("REFLECT GEM!",90);
+				NewBigMessage("Reflect Gem!",90);
 				MakeNormalSound(SND_POWERUP);
 				break;
 			case ITM_SILVERSLING:
 				MakeRingParticle(goodguy->x,goodguy->y,0,32,100);
-				NewBigMessage("SILVER BULLETS!",90);
+				NewBigMessage("Silver Bullets!",90);
 				MakeNormalSound(SND_POWERUP);
 				break;
 			case ITM_STICK:
 				MakeRingParticle(goodguy->x,goodguy->y,0,32,100);
 				NewBigMessage("A STICK!",90);
 				MakeNormalSound(SND_POWERUP);
+				break;
+			case ITM_FARLEY:
+				NewBigMessage("Farley!", 90);
+				MakeNormalSound(SND_POWERUP);
+				player.fireFlags |= FF_HELPER | FF_HELPERHERE;
 				break;
 
 		}
