@@ -140,7 +140,7 @@ class CSVProcessor:
         except (FileNotFoundError, ValueError) as e:
             print(f"Error processing items: {e}")
 
-
+    hamsandwich_region_map = {}
 
     def process_regions(self):
         try:
@@ -149,6 +149,7 @@ class CSVProcessor:
 
                 python_region_lines = pyRegionHeader + "\n"
                 tracker_region_lines = "loonyland_region_table = {\n"
+                #hamsandwich_region_lines = "static std::unordered_map<std::string, int> hamsandwich_region = {\n"
 
 
                 json_output = []
@@ -173,6 +174,8 @@ class CSVProcessor:
                     python_region_lines += f"    \"{reg_name}\": LLRegion({reg_real}"
                     if reg_map:
                         python_region_lines += f', \"{reg_map}\"'
+                    if reg_map_id:
+                        python_region_lines += f', map_id={reg_map_id}'
                     if reg_flags:
                             python_region_lines += f", " + self.format_flags_python(reg_flags)
                     python_region_lines += "),\n"
@@ -183,7 +186,12 @@ class CSVProcessor:
                         tracker_region_lines += f', map=\"{reg_map}\"'
                     tracker_region_lines += f"}},\n"
 
-                    # 3: tracker locations setup
+                    # 3: hamsandwich client data (C++ map: region -> map id)
+                    #if reg_map_id:
+                    #    hamsandwich_region_lines += f'    {{\"{reg_name}\", {reg_map_id}}},\n'
+                    self.hamsandwich_region_map[reg_name] = reg_map_id
+
+                    # 4: tracker locations setup
                     region_entry = {
                         "name": reg_name,
                         #"access_rules": [ f"$can_reach|{reg_name}" ],
@@ -203,6 +211,10 @@ class CSVProcessor:
                 python_region_lines += "}\n"
                 with open(PYTHON_DATA, 'a') as python_file:
                     python_file.write(python_region_lines)
+
+                #hamsandwich_region_lines += "};\n"
+                #with open(CLIENT_DATA, 'a') as client_data:
+                #    client_data.write(hamsandwich_region_lines)
 
                 tracker_region_lines += "}\n"
                 with open(TRACKER_SCRIPTS_DATA, 'a') as tracker_lua_file:
@@ -473,6 +485,7 @@ loonyland_location_table = {\n"""
 
     def process_entrances(self):
         try:
+            region_map = getattr(self, "hamsandwich_region_map", {})
             with open(INPUT_ENTRANCES, 'r') as input_file:
 
                 self.open_reader(input_file)
@@ -480,32 +493,42 @@ loonyland_location_table = {\n"""
                 tracker_ent_lines = luaEntranceHeader + "\n"
                 tracker_ent_lines += "loonyland_entrance_table = {\n"
 
+                # C++ hamsandwich: Entrance struct + maps by id and by location key ("Region:srcx:srcy")
+                hamsandwich_entrance_struct = (
+                    "struct Entrance { int id; int map_id; int src_x; int src_y; int dst_x=0; int dst_y=0; };\n\n"
+                )
+                hamsandwich_by_id_init = "static std::unordered_map<int, Entrance> entrances_by_id = {\n"
+                hamsandwich_by_loc_init = "static std::unordered_map<std::string, int> entrances_by_loc = {\n"
+
                 for row in self.csv_reader:
                     if row[LINE_DISABLED]:
                         continue
 
-                    entrance_source = row[ENT_SOURCE]
+                    entrance_name = row[ENT_NAME]
+                    entrance_source = row[ENT_REGION]
                     if entrance_source == "":
                         continue
 
                     entrance_sourceX = row[ENT_SOURCEX]
                     entrance_sourceY = row[ENT_SOURCEY]
+                    entrance_destX = row[ENT_DESTX]
+                    entrance_destY = row[ENT_DESTY]
                     entrance_end = row[ENT_END]
                     entrance_load = row[ENT_LOAD]
+                    entrance_id = row[ENT_ID]
                     entrance_logic = row[ENT_LOGIC]
                     entrance_flags = row[ENT_FLAGS]
 
                     # python entrance file
-                    python_ent_lines += f"        LLEntrance(\"{entrance_source}\", \"{entrance_end}\""
-                    if entrance_load:
-                        python_ent_lines += f", True"
-                    else:
-                        python_ent_lines += f", False"
+                    python_ent_lines += f"        LLEntrance(\"{entrance_name}\", \"{entrance_source}\", \"{entrance_end}\""
+
                     if entrance_logic:
                         python_ent_lines += ", lambda state: "
                         python_ent_lines += self.parse_conditions(entrance_logic, "python")
                     if entrance_flags:
                             python_ent_lines += f", " + self.format_flags_python(entrance_flags)
+                    if entrance_id:
+                        python_ent_lines += f", id={entrance_id}"
                     python_ent_lines += "),\n"
 
                     # 2: Tracker entrances
@@ -516,14 +539,33 @@ loonyland_location_table = {\n"""
                         tracker_ent_lines += " end"
                     tracker_ent_lines += "},\n"
 
+                    # map by id (only if id is present; using -1 allowed too)
+                    if entrance_id:
+                        map_id = self.hamsandwich_region_map[entrance_source]
+
+                        hamsandwich_by_id_init += f"    {{ {entrance_id}, {{ {entrance_id}, {map_id}, {entrance_sourceX}, {entrance_sourceY}"
+                        if entrance_destX:
+                            hamsandwich_by_id_init += f", {entrance_destX}, {entrance_destY}"
+                        hamsandwich_by_id_init += f"}}}}, \n"
+
+                        loc_key = f'{map_id}:{entrance_sourceX}:{entrance_sourceY}'
+                        esc_loc_key = loc_key.replace('\\', '\\\\').replace('"', '\\"')
+                        hamsandwich_by_loc_init += f'    {{ "{esc_loc_key}", {entrance_id} }},\n'
+
                 python_ent_lines += "    ]\n"
-                python_ent_lines += pyEntranceFooter + "\n"
                 with open(PYTHON_DATA, 'a') as python_file:
                     python_file.write(python_ent_lines)
 
                 tracker_ent_lines += "}\n"
                 with open(TRACKER_SCRIPTS_DATA, 'a') as tracker_file:
                     tracker_file.write(tracker_ent_lines)
+
+                hamsandwich_by_id_init += "};\n\n"
+                hamsandwich_by_loc_init += "};\n\n"
+                with open(CLIENT_DATA, 'a') as client_data:
+                    client_data.write(hamsandwich_entrance_struct)
+                    client_data.write(hamsandwich_by_id_init)
+                    client_data.write(hamsandwich_by_loc_init)
 
             print("Processed Entrances")
         except (FileNotFoundError, ValueError) as e:

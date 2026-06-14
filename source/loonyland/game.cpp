@@ -13,6 +13,7 @@
 #include "log.h"
 #include "palettes.h"
 #include "loonyArchipelago.h"
+#include <iostream>
 
 byte showStats=0;
 dword gameStartTime,visFrameCount,updFrameCount;
@@ -604,6 +605,19 @@ TASK(byte) LunaticWorld(const char *worldName)
 
 	if(!LoadWorld(&curWorld,worldName))
 		CO_RETURN WORLD_ABORT;
+	/*for (int i = 0; i < curWorld.numMaps; i++)
+	{
+		for (int j = 0; j < MAX_SPECIAL; j++)
+		{
+			special_t special = curWorld.map[i]->special[j];
+			if (special.effect == SPC_GOTOMAP)
+			{
+				std::cout 
+					<< curWorld.map[i]->name << ";" << i << ";" << special.x << ";" << special.y
+					<< ";" << curWorld.map[special.value]->name << ";" << special.value << ";" << special.effectX << ";" << special.effectY << std::endl;
+			}
+		}
+	}*/
 
 	InitWorld(&curWorld,player.worldNum);
 	if(player.worldNum==WORLD_SURVIVAL)

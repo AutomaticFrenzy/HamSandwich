@@ -7,6 +7,7 @@
 #include "quest.h"
 #include "badge.h"
 #include "math_extras.h"
+#include "loonyArchipelago.h"
 
 #define NUM_STARS 400
 
@@ -1775,10 +1776,41 @@ void SpecialTakeEffect(byte num,Map *map,special_t *spcl,Guy *victim)
 			if(spcl->value==41 && (player.worldNum==WORLD_NORMAL || player.worldNum==WORLD_REMIX || player.worldNum==WORLD_RANDOMIZER) &&
 				player.var[VAR_QUESTDONE+QUEST_HILL]==1)
 				spcl->value=44;	// go to empty rooftop instead
-			SendMessageToGame(MSG_GOTOMAP,spcl->value);
-			player.destx=spcl->effectX;
-			player.desty=spcl->effectY;
-			BadgeCheck(BE_GOTOMAP,spcl->value,map);
+			{
+				int targetLevel = spcl->value;
+				int targetX = spcl->effectX;
+				int targetY = spcl->effectY;
+
+				if (ArchipelagoMode)
+				{
+					std::string locKey = std::to_string(player.levelNum) + ":" + std::to_string(spcl->trigX) + ":" + std::to_string(spcl->trigY);
+
+					auto it_loc = entrances_by_loc.find(locKey);
+					if (it_loc != entrances_by_loc.end())
+					{
+
+						int source_Id = it_loc->second;
+						int dest_Id = entrance_pairings[source_Id];
+						auto it_ent = entrances_by_id.find(dest_Id);
+						if (it_ent != entrances_by_id.end())
+						{
+							const Entrance& ent = it_ent->second;
+							// use entrance's map_id and destination coords
+							targetLevel = ent.map_id;
+							targetX = ent.dst_x;
+							targetY = ent.dst_y;
+						}
+					}
+
+				}
+
+
+
+				SendMessageToGame(MSG_GOTOMAP, targetLevel);
+				player.destx = targetX;
+				player.desty = targetY;
+				BadgeCheck(BE_GOTOMAP, targetLevel, map);
+			}
 			break;
 		case SPC_SETVAR:
 			PlayerSetVar(spcl->value,spcl->effectTag);

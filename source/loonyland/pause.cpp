@@ -5,6 +5,7 @@
 #include "ch_summon.h"
 #include "appdata.h"
 #include "loonyArchipelago.h"
+#include <iostream>
 
 namespace
 {
@@ -503,7 +504,6 @@ void LoadGame(int i)
 			{
 				FreeWorld(&curWorld);
 				LoadWorld(&curWorld, "loony.llw");
-
 				InitWorld(&curWorld, WORLD_NORMAL);
 
 			}

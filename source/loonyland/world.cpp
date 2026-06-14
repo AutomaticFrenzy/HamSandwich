@@ -2,6 +2,7 @@
 #include "player.h"
 #include "editor.h"
 #include "appdata.h"
+#include <iostream>
 
 byte NewWorld(world_t *world,MGLDraw *mgl)
 {

@@ -48,14 +48,11 @@ pyRulesFooter = """    for loc in world.multiworld.get_locations(world.player):
         if loc.name in access_rules:
             add_rule(loc, access_rules[loc.name])"""
 
-pyEntranceHeader = """def set_entrance_rules(world):
+pyEntranceHeader = """def setup_entrances(world):
     player = world.player
-    loonyland_entrance_table: list[LLEntrance] = ["""
+    return ["""
 
-pyEntranceFooter = """    for region in world.multiworld.get_regions(world.player):
-        for entry in loonyland_entrance_table:
-            if entry.source_region == region.name and entry.can_create(world.options):
-                region.connect(connecting_region=world.get_region(entry.target_region), rule=entry.rule)"""
+
 
 luaEntranceHeader = """function ent_valid(entry)
         if not entry.rule then

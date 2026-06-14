@@ -13,6 +13,7 @@
 #include "quest.h"
 #include "options.h"
 #include "badge.h"
+ 
 
 static std::unique_ptr<ArchipelagoClient> ap;
 
@@ -34,6 +35,7 @@ void GivePlayerItem(int64_t item_id, bool loud);
 
 std::unordered_map<int, bool> locsFound;
 std::unordered_map<int, int> itemsFound;
+std::unordered_map<int, int> entrance_pairings;
 std::map<std::string, int> scouted_items;
 bool ArchipelagoMode = false;
 bool ExpectingDeath = false;
@@ -631,13 +633,25 @@ void SetupWorld()
 	world.map[0]->map[91 + 90 * world.map[0]->width].item = 2;
 	world.map[0]->map[92 + 90 * world.map[0]->width].item = 2;
 
-	world.map[0]->map[83 + 146 * world.map[0]->width].item = 0; //remove tree blocking vision of small items in terror glade
+	//remove tree blocking vision of small items in terror glade
+	world.map[0]->map[83 + 146 * world.map[0]->width].item = 0;
 
 	ham_sprintf(world.map[18]->name, "Haunted Tower Floor 2");
 	ham_sprintf(world.map[19]->name, "Haunted Tower Floor 3");
 
+	//bombulus shrine deleting item if you have the bomb
 	world.map[23]->special[5].trigger = 0;
 
+	//disable right goto map triggers in zones with side by side warps
+	// halloween hill vampy entrance
+	world.map[0]->special[87].trigger = 0;
+	//heart of chaos
+	world.map[42]->special[22].trigger = 0;
+	world.map[42]->special[23].trigger = 0;
+	//larry
+	world.map[46]->special[2].trigger = 0;
+
+	//respawn larry for time badge
 	world.map[46]->special[4].trigger = TRG_TIMED;
 	world.map[46]->special[4].trigValue = 0;
 
@@ -784,6 +798,14 @@ void GetRoomInfo() {
 	apSlotData.badges = ap->room_info("slot_data")["badges"].getNumber();
 	apSlotData.dolls = ap->room_info("slot_data")["dolls"].getNumber();
 	apSlotData.deathlink = ap->room_info("slot_data")["death_link"].getNumber();
+
+	const auto& arr = ap->room_info("slot_data")["entrance_rando_data"].getArray();
+	for (const auto& elem : arr) {
+		if (!elem.isArray() || elem.getArray().size() != 2) continue;         // validate
+		int from = elem[0].getNumber();                              
+		int to = elem[1].getNumber();                             
+		entrance_pairings[from] = to;         
+	}
 
 	opt.difficulty = apSlotData.difficulty;
 
