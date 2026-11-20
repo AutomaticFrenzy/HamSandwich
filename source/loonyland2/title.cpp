@@ -12,10 +12,6 @@
 #include "appdata.h"
 #include "ioext.h"
 
-#if __linux__ || __EMSCRIPTEN__
-#include <unistd.h>
-#endif
-
 #ifdef DIRECTORS
 #define VERSION_NO	"Version 1.2CE"
 #else
@@ -220,7 +216,7 @@ void GetSavesForMenu(void)
 		else if(f)
 		{
 			static_assert(sizeof(player_t) == 6118);
-			SDL_RWread(f, &p,sizeof(player_t),1);
+			SDL_ReadIO(f, &p,sizeof(player_t));
 			f.reset();
 
 			save[n].percentage=CalcPercent(&p);

@@ -11,12 +11,31 @@ else()
 	set(BUILD_LIBCURL_DOCS OFF)
 	set(ENABLE_CURL_MANUAL OFF)
 	set(CURL_USE_LIBPSL OFF) # Not included in Steam Runtime SDK.
+	set(CURL_ENABLE_EXPORT_TARGET OFF)
+	set(BUILD_EXAMPLES OFF)
+	set(BUILD_TESTING OFF)
+	set(CURL_BROTLI OFF CACHE INTERNAL "")
+	set(CURL_ZSTD OFF CACHE INTERNAL "")
+	set(USE_LIBIDN2 OFF)
+	set(USE_NGHTTP2 OFF)
+
+	# Skip find_package(zlib) but build with zlib support anyways.
+	set(CURL_ZLIB OFF CACHE INTERNAL "")
+	set(ZLIB_FOUND TRUE)
+	# Preseed OpenSSL checks, because our ZLIB::ZLIB is not imported and thus
+	# not available at check time.
+	set(HAVE_DES_ECB_ENCRYPT TRUE)
+	set(HAVE_SSL_SET0_WBIO TRUE)
+	set(HAVE_OPENSSL_SRP TRUE)
 
 	if(WIN32)
 		set(CURL_USE_SCHANNEL ON)
 	endif()
 
 	add_subdirectory("curl" EXCLUDE_FROM_ALL)
+	if(CMAKE_CXX_COMPILER_ID MATCHES "^(GNU|Clang)$")
+		target_compile_options(libcurl_shared PRIVATE -Wno-format)
+	endif()
 	install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/curl/COPYING" TYPE BIN COMPONENT launcher/executables RENAME "LICENSE.curl.txt")
 
 	if(CURL_USE_OPENSSL)

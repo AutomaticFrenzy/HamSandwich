@@ -374,7 +374,7 @@ byte LunaticRun(int *lastTime)
 		}
 		else if(msgFromOtherModules==MSG_WINLEVEL)
 		{
-			DBG("GotWinLevel");
+			LogVerbose("GotWinLevel");
 			mapToGoTo=0;
 			if(msgContent==1)
 				windingDown=1;
@@ -579,7 +579,7 @@ TASK(byte) PlayALevel(byte map)
 		LunaticDraw();
 		AWAIT gamemgl->Flip();
 
-		if((lastKey==27 || (GetGamepadButtons()&(1<<SDL_CONTROLLER_BUTTON_START))) && gameMode==GAMEMODE_PLAY)
+		if((lastKey==27 || (GetGamepadButtons()&(1<<SDL_GAMEPAD_BUTTON_START))) && gameMode==GAMEMODE_PLAY)
 		{
 			PauseGame();
 		}
@@ -714,7 +714,7 @@ TASK(byte) LunaticWorld(const char *worldName)
 			}
 			if(player.worldNum==WORLD_BOSSBASH)
 			{
-				DBG("ReadyToTally");
+				LogVerbose("ReadyToTally");
 				AWAIT EndGameTally(gamemgl);
 				FreeWorld(&curWorld);
 				CO_RETURN WORLD_QUITGAME;	// you win!

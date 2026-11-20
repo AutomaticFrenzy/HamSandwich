@@ -1040,7 +1040,7 @@ byte EquipCount(byte item)
 	for(i=0;i<MAX_EQUIP;i++)
 		if(player.items[i].type==item)
 		{
-			if(c+player.items[i].count<=255)
+			if(player.items[i].count<=255-c)
 				c+=player.items[i].count;
 			else
 				return 255;
@@ -1059,7 +1059,7 @@ byte GotItem(byte item)
 	for(i=0;i<MAX_EQUIP;i++)
 		if(player.items[i].type==item)
 		{
-			if(c+player.items[i].count<=255)
+			if(player.items[i].count<=255-c)
 				c+=player.items[i].count;
 			else
 				c=255;
@@ -1069,7 +1069,7 @@ byte GotItem(byte item)
 	{
 		if(player.shopInv[SHOP_STASH][i].type==item)
 		{
-			if(c+player.shopInv[SHOP_STASH][i].count<=255)
+			if(player.shopInv[SHOP_STASH][i].count<=255-c)
 				c+=player.shopInv[SHOP_STASH][i].count;
 			else
 				c=255;
@@ -1670,7 +1670,7 @@ void EquipTest(void)
 		PlayerGetItem(type,val1,val2);
 		if(type>=IT_LENSA && type<=IT_LENSM)
 			lensResults[type-IT_LENSA]++;
-		SDL_RWprintf(f.get(), "%02d: %s (%d/%d, %s, %s, %s)\n",(i%60)+1,EquipName(&player.items[0]),player.items[0].value,player.items[0].speed,
+		SDL_IOprintf(f.get(), "%02d: %s (%d/%d, %s, %s, %s)\n",(i%60)+1,EquipName(&player.items[0]),player.items[0].value,player.items[0].speed,
 				GetSkill(player.items[0].skill[0])->name,GetSkill(player.items[0].skill[1])->name,GetSkill(player.items[0].skill[2])->name);
 
 		player.items[0].type=IT_NONE;
@@ -1682,18 +1682,18 @@ void EquipTest(void)
 			EquipCreateItem(20,&type,&val1,&val2);
 		PlayerGetItem(type,val1,val2);
 		potResults[val1]++;
-		SDL_RWprintf(f.get(), "%02d: %s (%d/%d, %s, %s, %s)\n",(i%60)+1,EquipName(&player.items[0]),player.items[0].value,player.items[0].speed,
+		SDL_IOprintf(f.get(), "%02d: %s (%d/%d, %s, %s, %s)\n",(i%60)+1,EquipName(&player.items[0]),player.items[0].value,player.items[0].speed,
 				GetSkill(player.items[0].skill[0])->name,GetSkill(player.items[0].skill[1])->name,GetSkill(player.items[0].skill[2])->name);
 
 		player.items[0].type=IT_NONE;
 	}
 	for(i=0;i<13;i++)
 	{
-		SDL_RWprintf(f.get(), "LENS%d: %03d\n",i,lensResults[i]);
+		SDL_IOprintf(f.get(), "LENS%d: %03d\n",i,lensResults[i]);
 	}
 	for(i=0;i<10;i++)
 	{
-		SDL_RWprintf(f.get(), "POT%d: %03d\n",i,potResults[i]);
+		SDL_IOprintf(f.get(), "POT%d: %03d\n",i,potResults[i]);
 	}
 
 	f.reset();

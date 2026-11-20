@@ -1,8 +1,8 @@
 #include "string_extras.h"
 #include <string.h>
 #include <algorithm>
-#include <SDL_assert.h>
-#include <SDL_rwops.h>
+#include <SDL3/SDL_assert.h>
+#include <SDL3/SDL_iostream.h>
 
 char* StringDestination::prepare(size_t *len)
 {
@@ -34,7 +34,7 @@ void StringDestination::assign(std::string_view s)
 	memcpy(ptr, s.data(), len);
 }
 
-span<char> ham_strcpy(span<char> dst, std::string_view src)
+std::span<char> ham_strcpy(std::span<char> dst, std::string_view src)
 {
 	// Do like strlcpy, then return the remainder of the buffer.
 	if (dst.size() > 0)
@@ -47,7 +47,7 @@ span<char> ham_strcpy(span<char> dst, std::string_view src)
 	return dst;
 }
 
-span<char> ham_sprintf(span<char> dst, const char* format, ...)
+std::span<char> ham_sprintf(std::span<char> dst, const char* format, ...)
 {
 	va_list args;
 	va_start(args, format);
@@ -94,22 +94,4 @@ void string_appendf(std::string* buffer, const char* format, ...)
 
 	va_end(args2);
 	va_end(args);
-}
-
-#ifdef __EMSCRIPTEN__
-#define SDL_vasprintf vasprintf
-#endif
-
-size_t SDL_RWprintf(SDL_RWops* rw, const char* format, ...)
-{
-	va_list args;
-	va_start(args, format);
-
-	char* buf = nullptr;
-	size_t size = SDL_vasprintf(&buf, format, args);
-	if (!buf)
-		return size;
-	size = SDL_RWwrite(rw, buf, 1, size);
-	SDL_free(buf);
-	return size;
 }

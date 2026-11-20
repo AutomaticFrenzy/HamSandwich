@@ -3,8 +3,8 @@
 #include <stdio.h>
 #include <stdarg.h>
 
-#include <SDL_platform.h>
-#include <SDL_log.h>
+#include <SDL3/SDL_platform.h>
+#include <SDL3/SDL_log.h>
 
 #ifdef __ANDROID__
 	#include <android/log.h>
@@ -13,10 +13,12 @@
 static SDL_LogOutputFunction original = nullptr;
 static void* originalUserdata = nullptr;
 static bool errorLogAttempted = false;
-static owned::SDL_RWops errorLog = nullptr;
+static owned::SDL_IOStream errorLog = nullptr;
+static std::string buffer;
 
 static const char *priorityPrefixes[] = {
     "",
+	"TRACE: ",
     "VERBOSE: ",
     "DEBUG: ",
     "INFO: ",
@@ -24,18 +26,50 @@ static const char *priorityPrefixes[] = {
     "ERROR: ",
     "CRITICAL: ",
 };
-static_assert(std::size(priorityPrefixes) == SDL_NUM_LOG_PRIORITIES);
+static_assert(std::size(priorityPrefixes) == SDL_LOG_PRIORITY_COUNT);
 
-void HamLogOutput(void *userdata, int category, SDL_LogPriority priority, const char *message)
+static const char *categoryPrefixes[] = {
+	"",
+	"(error) ",
+	"(assert) ",
+	"(system) ",
+	"(audio) ",
+	"(video) ",
+	"(render) ",
+	"(input) ",
+	"(test) ",
+	"(gpu) ",
+	"(10) ",
+	"(11) ",
+	"(12) ",
+	"(13) ",
+	"(14) ",
+	"(15) ",
+	"(16) ",
+	"(17) ",
+	"(18) ",
+};
+static_assert(std::size(categoryPrefixes) == SDL_LOG_CATEGORY_CUSTOM);
+
+static void HamLogOutput(void *userdata, int category, SDL_LogPriority priority, const char *message)
 {
 	(void)userdata;
 	original(originalUserdata, category, priority, message);
+
+	if ((size_t)category < std::size(categoryPrefixes))
+	{
+		buffer.append(categoryPrefixes[category]);
+	}
+	if (priority < std::size(priorityPrefixes))
+	{
+		buffer.append(priorityPrefixes[priority]);
+	}
+	buffer.append(message);
+	buffer.append("\n");
 	if (errorLog)
 	{
-		SDL_RWwrite(errorLog, priorityPrefixes[priority], 1, strlen(priorityPrefixes[priority]));
-		SDL_RWwrite(errorLog, message, 1, strlen(message));
-		SDL_RWwrite(errorLog, "\n", 1, 1);
-		// We should flush here but SDL_RWflush doesn't exist in SDL2.
+		buffer.erase(0, SDL_WriteIO(errorLog, buffer.data(), buffer.size()));
+		SDL_FlushIO(errorLog);
 		AppdataSync();
 	}
 }
@@ -45,35 +79,22 @@ void LogInit()
 	if (!original)
 	{
 #ifndef NDEBUG
-		SDL_LogSetPriority(SDL_LOG_CATEGORY_APPLICATION, SDL_LOG_PRIORITY_DEBUG);
+		// Set a hint rather than priority directly so that SDL_LOGGING environment variable takes priority.
+		SDL_SetHint(SDL_HINT_LOGGING, "app=debug");
 #endif
-		SDL_LogGetOutputFunction(&original, &originalUserdata);
-		SDL_LogSetOutputFunction(HamLogOutput, nullptr);
+		SDL_GetLogOutputFunction(&original, &originalUserdata);
+		SDL_SetLogOutputFunction(HamLogOutput, nullptr);
 	}
 
 	if (!errorLogAttempted && AppdataIsInit())
 	{
 		errorLogAttempted = true;
 		errorLog = AppdataOpen_Write("error.log");
+		if (errorLog && !buffer.empty())
+		{
+			buffer.erase(0, SDL_WriteIO(errorLog, buffer.data(), buffer.size()));
+			SDL_FlushIO(errorLog);
+			AppdataSync();
+		}
 	}
-}
-
-void LogDebug(const char* fmt, ...)
-{
-	LogInit();
-
-	va_list args;
-	va_start(args, fmt);
-	SDL_LogMessageV(SDL_LOG_CATEGORY_APPLICATION, SDL_LOG_PRIORITY_INFO, fmt, args);
-	va_end(args);
-}
-
-void LogError(const char* fmt, ...)
-{
-	LogInit();
-
-	va_list args;
-	va_start(args, fmt);
-	SDL_LogMessageV(SDL_LOG_CATEGORY_APPLICATION, SDL_LOG_PRIORITY_ERROR, fmt, args);
-	va_end(args);
 }

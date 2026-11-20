@@ -1,12 +1,15 @@
 # HamSandwich root CMake project file.
-# Minimum version is based on what is available in VS 2019.
-cmake_minimum_required(VERSION 3.19.0)
+# Minimum version is based on what is available in SteamRT 3 Sniper.
+cmake_minimum_required(VERSION 3.25.1)
 project("HamSandwich")
 
 cmake_policy(SET CMP0116 NEW)  # https://cmake.org/cmake/help/latest/policy/CMP0116.html
+if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.24)
+	cmake_policy(SET CMP0135 NEW)  # https://cmake.org/cmake/help/latest/policy/CMP0135.html
+endif()
 
 # Global settings pertaining to installation.
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(CMAKE_INSTALL_MESSAGE LAZY)
@@ -22,6 +25,11 @@ endif()
 
 if(APPLE)
 	set(CMAKE_INSTALL_RPATH "@executable_path")
+endif()
+
+# Let __cplusplus on MSVC work properly. https://devblogs.microsoft.com/cppblog/msvc-now-correctly-reports-__cplusplus/
+if(MSVC)
+	add_compile_options("/Zc:__cplusplus")
 endif()
 
 # Include external/, possibly including dependencies of host build tools.
@@ -51,22 +59,52 @@ else()
 	add_subdirectory(tools)
 endif()
 
+# Enable sanitizers in debug mode.
+if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND LINUX)
+	# vptr gives false positives on Steam API, and Clang 21+ disable it by default anyways.
+	add_compile_options(-fsanitize=undefined -fno-sanitize=vptr)
+	add_link_options(-fsanitize=undefined -fno-sanitize=vptr)
+
+	# Because we build inside a container and run outside it, we must use
+	# -shared-libasan and install the .so file.
+	execute_process(
+		COMMAND
+			"${CMAKE_CXX_COMPILER}"
+			--print-file-name
+			libclang_rt.asan-x86_64.so
+		OUTPUT_VARIABLE asan_so
+		OUTPUT_STRIP_TRAILING_WHITESPACE
+	)
+	if(IS_ABSOLUTE "${asan_so}")
+		install(FILES "${asan_so}" TYPE BIN COMPONENT generic/executables)
+		add_compile_options(-fsanitize=address,leak -shared-libasan)
+		add_link_options(-fsanitize=address,leak -shared-libasan)
+		message(STATUS "ASan found: ${asan_so}")
+	else()
+		message(WARNING "ASan not found")
+	endif()
+endif()
+
 # Include the source/ directories with all the actual programs.
 add_subdirectory("source")
 
 # On MinGW, install the requisite .dll files.
-if(WIN32 AND CMAKE_COMPILER_IS_GNUCC)
+if(MINGW)
 	function(install_dll dll_name)
 		find_program("${dll_name}" "${dll_name}" REQUIRED NO_CACHE)
 		install(FILES "${${dll_name}}" TYPE BIN COMPONENT generic/executables)
 	endfunction()
-	if(CMAKE_SIZEOF_VOID_P EQUAL 4)
-		install_dll("libgcc_s_dw2-1.dll")
-	elseif(CMAKE_SIZEOF_VOID_P EQUAL 8)
-		install_dll("libgcc_s_seh-1.dll")
+	if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+		if(CMAKE_SIZEOF_VOID_P EQUAL 4)
+			install_dll("libgcc_s_dw2-1.dll")
+		elseif(CMAKE_SIZEOF_VOID_P EQUAL 8)
+			install_dll("libgcc_s_seh-1.dll")
+		endif()
+		install_dll("libstdc++-6.dll")
+		install_dll("libwinpthread-1.dll")
+	elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+		install_dll("libc++.dll")
 	endif()
-	install_dll("libstdc++-6.dll")
-	install_dll("libwinpthread-1.dll")
 endif()
 
 install(FILES "LICENSE.md" RENAME "LICENSE.HamSandwich.txt" TYPE BIN COMPONENT generic/executables)

@@ -12,9 +12,6 @@
 #include "recordbook.h"
 #include "shop.h"
 #include "appdata.h"
-#if __linux__ || __EMSCRIPTEN__
-#include <unistd.h>
-#endif
 
 constexpr int PBTN_HEIGHT = 19;
 
@@ -249,7 +246,7 @@ byte UpdateProfMenu(int *lastTime,MGLDraw *mgl)
 	int i,j;
 
 	int KEY_MAX = 0;
-	const byte* key = SDL_GetKeyboardState(&KEY_MAX);
+	const bool* key = SDL_GetKeyboardState(&KEY_MAX);
 
 	int oldMsx = msx, oldMsy = msy;
 	mgl->GetMouse(&msx,&msy);
@@ -839,7 +836,7 @@ byte UpdateProfMenu(int *lastTime,MGLDraw *mgl)
 				else
 					strcpy(kcBtn[kBtnNum].txt,"? ? ?");
 
-				if(k==27 || (GetGamepadButtons() & ~(1 << SDL_CONTROLLER_BUTTON_A)))
+				if(k==27 || (GetGamepadButtons() & ~(1 << SDL_GAMEPAD_BUTTON_SOUTH)))
 				{
 					InitKeyConfig();
 					kcMode=0;

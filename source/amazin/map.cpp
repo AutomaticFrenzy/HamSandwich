@@ -78,13 +78,15 @@ void MapLoad(const char *fname)
 		FatalError("Can't load map!");
 		exit(1);
 	}
-	SDL_RWread(f, g_Map, 0x10a, 8);
+	SDL_ReadIO(f, g_Map, 0x10a * 8);
 }
 
 void MapSave(const char *fname)
 {
 	auto f = AppdataOpen_Write(fname);
-	SDL_RWwrite(f, g_Map, 0x10a, 8);
+	SDL_WriteIO(f, g_Map, 0x10a * 8);
+	f.reset();
+	AppdataSync();
 }
 
 void MapClear(GameMode theme)
@@ -1243,6 +1245,9 @@ void ItemRender(ItemType item, byte itemAnim, int x, int y)
 			{
 				DisplayListAdd(g_ItemsJsp->GetSprite(((int)((itemAnim - 138) + ((int)(itemAnim - 138) >> 0x1f & 3U)) >> 2) + 31), x, y, 0, y, 0, DisplayEffect::Normal);
 			}
+			break;
+		default:
+			break;
 		}
 	}
 }

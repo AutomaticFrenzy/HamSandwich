@@ -67,15 +67,15 @@ void FreeProfile(void)
 	}
 }
 
-void SavePlayLists(SDL_RWops *f)
+void SavePlayLists(SDL_IOStream *f)
 {
 	int i;
 
 	for(i=0;i<NUM_PLAYLISTS;i++)
 	{
-		SDL_RWwrite(f,&profile.playList[i].numSongs,1,sizeof(byte));
+		SDL_WriteIO(f,&profile.playList[i].numSongs,1);
 		if(profile.playList[i].numSongs>0)
-			SDL_RWwrite(f,profile.playList[i].song,SONGNAME_LEN,profile.playList[i].numSongs);
+			SDL_WriteIO(f,profile.playList[i].song,SONGNAME_LEN*profile.playList[i].numSongs);
 	}
 }
 
@@ -95,27 +95,27 @@ void SaveProfile(void)
 
 		// save this profile as the current one.
 		auto f = AppdataOpen_Write("profile.cfg");
-		SDL_RWprintf(f.get(),"%s\n",profile.name);
+		SDL_IOprintf(f.get(),"%s\n",profile.name);
 		f.reset();
 	}
 
 	// also actually save the profile!
 	auto f = AppdataOpen_Write(prfName);
 	// begin fwrite(&profile, sizeof(profile_t), 1, f) emulation
-	SDL_RWwrite(f, &profile, 68, 1);
+	SDL_WriteIO(f, &profile, 68);
 	for(i = 0; i < NUM_PLAYLISTS; ++i)
 	{
-		SDL_RWwrite(f, "\0\0\0\0\0\0\0\0", 8, 1);
+		SDL_WriteIO(f, "\0\0\0\0\0\0\0\0", 8);
 	}
-	SDL_RWwrite(f, &profile.difficulty, 8, 1);
+	SDL_WriteIO(f, &profile.difficulty, 8);
 	// begin progress_t part
 	{
-		SDL_RWwrite(f, &profile.progress, 112, 1);
-		SDL_RWwrite(f, "\0\0\0\0", 4, 1);  // skip worldData_t *world
-		SDL_RWwrite(f, &profile.progress.kills, 2152 - 112 - 4, 1);
+		SDL_WriteIO(f, &profile.progress, 112);
+		SDL_WriteIO(f, "\0\0\0\0", 4);  // skip worldData_t *world
+		SDL_WriteIO(f, &profile.progress.kills, 2152 - 112 - 4);
 	}
 	// end progress_t part
-	SDL_assert(SDL_RWtell(f) == 2260);
+	SDL_assert(SDL_TellIO(f) == 2260);
 	// end fwrite emulation
 
 	SavePlayLists(f.get());
@@ -125,11 +125,11 @@ void SaveProfile(void)
 	// so that we can save the word!
 	for(i=0;i<profile.progress.num_worlds;i++)
 	{
-		SDL_RWwrite(f, &profile.progress.world[i],76,1);
-		SDL_RWwrite(f, "\0\0\0\0", 4, 1);
+		SDL_WriteIO(f, &profile.progress.world[i],76);
+		SDL_WriteIO(f, "\0\0\0\0", 4);
 		for(j=0;j<profile.progress.world[i].levels;j++)
 		{
-			SDL_RWwrite(f, &profile.progress.world[i].level[j],sizeof(levelData_t),1);
+			SDL_WriteIO(f, &profile.progress.world[i].level[j],sizeof(levelData_t));
 		}
 	}
 	f.reset();
@@ -137,17 +137,17 @@ void SaveProfile(void)
 	firstTime=0;
 }
 
-void LoadPlayLists(SDL_RWops *f)
+void LoadPlayLists(SDL_IOStream *f)
 {
 	int i;
 
 	for(i=0;i<NUM_PLAYLISTS;i++)
 	{
-		SDL_RWread(f,&profile.playList[i].numSongs,1,sizeof(byte));
+		SDL_ReadIO(f,&profile.playList[i].numSongs,1);
 		if(profile.playList[i].numSongs>0)
 		{
 			profile.playList[i].song=(char *)malloc(SONGNAME_LEN*profile.playList[i].numSongs);
-			SDL_RWread(f,profile.playList[i].song,SONGNAME_LEN,profile.playList[i].numSongs);
+			SDL_ReadIO(f,profile.playList[i].song,SONGNAME_LEN*profile.playList[i].numSongs);
 		}
 		else
 			profile.playList[i].song=NULL;
@@ -169,7 +169,7 @@ void LoadProfile(const char *name)
 
 		// save this profile as the current one.
 		auto f = AppdataOpen_Write("profile.cfg");
-		SDL_RWprintf(f.get(),"%s\n",name);
+		SDL_IOprintf(f.get(),"%s\n",name);
 		f.reset();
 		AppdataSync();
 	}
@@ -182,20 +182,20 @@ void LoadProfile(const char *name)
 		return;
 	}
 	// begin fread(&profile, sizeof(profile_t), 1, f) emulation
-	SDL_RWread(f, &profile, 68, 1);
+	SDL_ReadIO(f, &profile, 68);
 	for(i = 0; i < NUM_PLAYLISTS; ++i)
 	{
-		SDL_RWseek(f, 8, RW_SEEK_CUR);
+		SDL_SeekIO(f, 8, SDL_IO_SEEK_CUR);
 	}
-	SDL_RWread(f, &profile.difficulty, 8, 1);
+	SDL_ReadIO(f, &profile.difficulty, 8);
 	// begin progress_t part
 	{
-		SDL_RWread(f, &profile.progress, 112, 1);
-		SDL_RWseek(f, 4, RW_SEEK_CUR);  // skip worldData_t *world
-		SDL_RWread(f, &profile.progress.kills, 2152 - 112 - 4, 1);
+		SDL_ReadIO(f, &profile.progress, 112);
+		SDL_SeekIO(f, 4, SDL_IO_SEEK_CUR);  // skip worldData_t *world
+		SDL_ReadIO(f, &profile.progress.kills, 2152 - 112 - 4);
 	}
 	// end progress_t part
-	SDL_assert(SDL_RWtell(f) == 2260);
+	SDL_assert(SDL_TellIO(f) == 2260);
 	// end fread emulation
 	LoadPlayLists(f.get());
 	InitCustomWorld();
@@ -207,12 +207,12 @@ void LoadProfile(const char *name)
 		profile.progress.world=(worldData_t *)malloc(sizeof(worldData_t)*profile.progress.num_worlds);
 		for(i=0;i<profile.progress.num_worlds;i++)
 		{
-			SDL_RWread(f, &profile.progress.world[i],76,1);
-			SDL_RWseek(f, 4, RW_SEEK_CUR);
+			SDL_ReadIO(f, &profile.progress.world[i],76);
+			SDL_SeekIO(f, 4, SDL_IO_SEEK_CUR);
 			profile.progress.world[i].level=(levelData_t *)malloc(sizeof(levelData_t)*profile.progress.world[i].levels);
 			for(j=0;j<profile.progress.world[i].levels;j++)
 			{
-				SDL_RWread(f, &profile.progress.world[i].level[j],sizeof(levelData_t),1);
+				SDL_ReadIO(f, &profile.progress.world[i].level[j],sizeof(levelData_t));
 			}
 		}
 	}
@@ -569,9 +569,9 @@ void SaveState(void)
 	auto f = AppdataOpen_Write(fname);
 
 	// first write out the player itself
-	SDL_RWwrite(f, &player, offsetof(player_t, worldProg), 1);
-	SDL_RWwrite(f, "\0\0\0\0\0\0\0\0", 8, 1);
-	SDL_RWwrite(f, &player.shield, sizeof(player_t) - offsetof(player_t, shield), 1);
+	SDL_WriteIO(f, &player, offsetof(player_t, worldProg));
+	SDL_WriteIO(f, "\0\0\0\0\0\0\0\0", 8);
+	SDL_WriteIO(f, &player.shield, sizeof(player_t) - offsetof(player_t, shield));
 
 	// next the ID of whoever is tagged
 	if(TaggedMonster()==NULL)
@@ -579,13 +579,13 @@ void SaveState(void)
 	else
 		w=TaggedMonster()->ID;
 
-	SDL_RWwrite(f,&w,sizeof(word),1);
+	SDL_WriteIO(f,&w,sizeof(word));
 	// then all specials
 	SaveSpecials(f.get());
 	// then level flags
-	SDL_RWwrite(f,&curMap->flags,sizeof(word),1);
+	SDL_WriteIO(f,&curMap->flags,sizeof(word));
 	// then the map
-	SDL_RWwrite(f,curMap->map,curMap->width*curMap->height,sizeof(mapTile_t));
+	SDL_WriteIO(f,curMap->map,curMap->width*curMap->height*sizeof(mapTile_t));
 	// then the monsters
 	SaveGuys(f.get());
 	// then the bullets
@@ -624,13 +624,13 @@ byte LoadState(byte lvl,byte getPlayer)
 	// first read the player itself, undoing the damage to worldProg and levelProg
 	if (getPlayer == 1)
 	{
-		SDL_RWread(f, &player, offsetof(player_t, worldProg), 1);
-		SDL_RWseek(f, 8, RW_SEEK_CUR);
-		SDL_RWread(f, &player.shield, sizeof(player_t) - offsetof(player_t, shield), 1);
+		SDL_ReadIO(f, &player, offsetof(player_t, worldProg));
+		SDL_SeekIO(f, 8, SDL_IO_SEEK_CUR);
+		SDL_ReadIO(f, &player.shield, sizeof(player_t) - offsetof(player_t, shield));
 	}
 	else // !getPlayer || getPlayer==2
 	{
-		SDL_RWseek(f, 368, RW_SEEK_CUR);
+		SDL_SeekIO(f, 368, SDL_IO_SEEK_CUR);
 	}
 	static_assert(sizeof(player_t) - offsetof(player_t, shield) + offsetof(player_t, worldProg) + 8 == 368, "save compatibility broken; adjust this assertion if you are sure");
 
@@ -640,13 +640,13 @@ byte LoadState(byte lvl,byte getPlayer)
 	}
 
 	// next the ID of whoever is tagged
-	SDL_RWread(f,&tagged,sizeof(word),1);
+	SDL_ReadIO(f,&tagged,sizeof(word));
 	// then all specials
 	LoadSpecials(f.get(),curMap->special);
 	// then the flags
-	SDL_RWread(f,&curMap->flags,sizeof(word),1);
+	SDL_ReadIO(f,&curMap->flags,sizeof(word));
 	// then the map
-	SDL_RWread(f,curMap->map,curMap->width*curMap->height,sizeof(mapTile_t));
+	SDL_ReadIO(f,curMap->map,curMap->width*curMap->height*sizeof(mapTile_t));
 	// then the monsters
 	LoadGuys(f.get());
 	if(tagged==65535)

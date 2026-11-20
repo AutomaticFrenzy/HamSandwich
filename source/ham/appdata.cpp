@@ -1,3 +1,4 @@
+#define _CRT_NONSTDC_NO_WARNINGS
 #include "appdata.h"
 #include <string>
 #include <vector>
@@ -21,12 +22,11 @@
 #include <sys/wait.h>
 #endif
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
 
 #include "vanilla_extract.h"
 
 #include "log.h"
-#include "erase_if.h"
 #include "jamultypes.h"
 #include "metadata.h"
 #include "extern.h"
@@ -54,14 +54,14 @@ Android
 		ro: $INTERNAL
 	else:
 		RW: $INTERNAL
-	ro: SDL_RWFromFile, which reads from .apk
+	ro: SDL_IOFromFile, which reads from .apk
 		Tempfiles in $INTERNAL/.bundle_tmp when needed
 		Provided by build process
 Default
 	RW: $PWD
 	ro: installers according to metadata .json
 
-Pseudocode for SDL_RWFromFile(file, mode):
+Pseudocode for SDL_IOFromFile(file, mode):
 	if android:
 		if file is absolute:
 			return fopen(file, mode) if successful
@@ -83,7 +83,7 @@ static Mount init_vfs_spec(const char* what, const char* mountpoint, const char*
 	stat(param, &sb);
 	if ((sb.st_mode & S_IFMT) == S_IFDIR && strcmp(kind, "stdio"))
 	{
-		SDL_Log("%s: ignoring '%s' and assuming '%s' is pre-extracted", what, kind, param);
+		LogInfo("%s: ignoring '%s' and assuming '%s' is pre-extracted", what, kind, param);
 		return { vanilla::open_stdio(param), mountpoint, { vanilla::VfsSourceKind::BaseGame } };
 	}
 
@@ -96,7 +96,7 @@ static Mount init_vfs_spec(const char* what, const char* mountpoint, const char*
 	}
 	else if (!strcmp(kind, "zip"))
 	{
-		owned::SDL_RWops fp = owned::SDL_RWFromFile(param, "rb");
+		owned::SDL_IOStream fp = owned::SDL_IOFromFile(param, "rb");
 		if (!fp) {
 			LogError("%s: failed to open '%s' in VFS spec '%s@%s@%s'", what, param, mountpoint, kind, param);
 			return { nullptr };
@@ -105,7 +105,7 @@ static Mount init_vfs_spec(const char* what, const char* mountpoint, const char*
 	}
 	else if (!strcmp(kind, "nsis"))
 	{
-		owned::SDL_RWops fp = owned::SDL_RWFromFile(param, "rb");
+		owned::SDL_IOStream fp = owned::SDL_IOFromFile(param, "rb");
 		if (!fp) {
 			LogError("%s: failed to open '%s' in VFS spec '%s@%s@%s'", what, param, mountpoint, kind, param);
 			return { nullptr };
@@ -114,7 +114,7 @@ static Mount init_vfs_spec(const char* what, const char* mountpoint, const char*
 	}
 	else if (!strcmp(kind, "inno"))
 	{
-		owned::SDL_RWops fp = owned::SDL_RWFromFile(param, "rb");
+		owned::SDL_IOStream fp = owned::SDL_IOFromFile(param, "rb");
 		if (!fp) {
 			LogError("%s: failed to open '%s' in VFS spec '%s@%s@%s'", what, param, mountpoint, kind, param);
 			return { nullptr };
@@ -123,7 +123,7 @@ static Mount init_vfs_spec(const char* what, const char* mountpoint, const char*
 	}
 	else if (!strcmp(kind, "inno3"))
 	{
-		owned::SDL_RWops fp = owned::SDL_RWFromFile(param, "rb");
+		owned::SDL_IOStream fp = owned::SDL_IOFromFile(param, "rb");
 		if (!fp) {
 			LogError("%s: failed to open '%s' in VFS spec '%s@%s@%s'", what, param, mountpoint, kind, param);
 			return { nullptr };
@@ -206,19 +206,19 @@ void AppdataSync() {
 #elif defined(__ANDROID__) && __ANDROID__
 // Android configuration
 
-#include <SDL_system.h>
+#include <SDL3/SDL_system.h>
 
 static VfsStack default_vfs_stack(bool* error) {
 	(void) error;
 
 	VfsStack result;
-	int need_flags = SDL_ANDROID_EXTERNAL_STORAGE_READ | SDL_ANDROID_EXTERNAL_STORAGE_WRITE;
+	uint32_t need_flags = SDL_ANDROID_EXTERNAL_STORAGE_READ | SDL_ANDROID_EXTERNAL_STORAGE_WRITE;
 	result.push_back(vanilla::open_android(), "", vanilla::VfsSourceKind::BaseGame);
-	if ((SDL_AndroidGetExternalStorageState() & need_flags) == need_flags) {
-		result.push_back(vanilla::open_stdio(SDL_AndroidGetInternalStoragePath()), "", vanilla::VfsSourceKind::Appdata);
-		result.set_appdata(vanilla::open_stdio(SDL_AndroidGetExternalStoragePath()));
+	if ((SDL_GetAndroidExternalStorageState() & need_flags) == need_flags) {
+		result.push_back(vanilla::open_stdio(SDL_GetAndroidInternalStoragePath()), "", vanilla::VfsSourceKind::Appdata);
+		result.set_appdata(vanilla::open_stdio(SDL_GetAndroidExternalStoragePath()));
 	} else {
-		result.set_appdata(vanilla::open_stdio(SDL_AndroidGetInternalStoragePath()));
+		result.set_appdata(vanilla::open_stdio(SDL_GetAndroidInternalStoragePath()));
 	}
 	return result;
 }
@@ -238,27 +238,27 @@ static VfsStack default_vfs_stack(bool* error) {
 			auto mount = init_vfs_spec("built-in", spec.mountpoint, spec.kind, spec.param);
 			mount.meta.kind = spec.optional ? vanilla::VfsSourceKind::Addon : vanilla::VfsSourceKind::BaseGame;
 			if (mount.vfs) {
-				SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "auto %d %s: %s@%s@%s", i, spec.optional ? "enabled" : "required", spec.mountpoint, spec.kind, spec.param);
+				LogDebug("auto %d %s: %s@%s@%s", i, spec.optional ? "enabled" : "required", spec.mountpoint, spec.kind, spec.param);
 				result.push_back(std::move(mount));
 			} else {
 				LogError("detect_installers: failed to mount builtin[%d]: %s@%s@%s", i, spec.mountpoint, spec.kind, spec.param);
 				*error = true;
 			}
 		} else {
-			SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "auto %d disabled: %s@%s@%s", i, spec.mountpoint, spec.kind, spec.param);
+			LogDebug("auto %d disabled: %s@%s@%s", i, spec.mountpoint, spec.kind, spec.param);
 		}
 	}
 
 	// High priority: custom assets provided directly.
 	std::string assets = "assets/";
 	assets.append(meta->appdata_folder_name);
-	SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "auto assets: %s", assets.c_str());
+	LogDebug("auto assets: %s", assets.c_str());
 	result.push_back(vanilla::open_stdio(assets), "", vanilla::VfsSourceKind::BaseGame);
 
 	// Use `appdata/$NAME` as our appdata folder.
 	std::string appdata = "appdata/";
 	appdata.append(meta->appdata_folder_name);
-	SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "auto appdata: %s", appdata.c_str());
+	LogDebug("auto appdata: %s", appdata.c_str());
 	result.set_appdata(vanilla::open_stdio(appdata));
 
 	return result;
@@ -310,14 +310,14 @@ static void missing_assets_message() {
 static VfsStack vfs_stack_from_env(bool* error) {
 	VfsStack result;
 	if (const char *appdata_spec = SDL_getenv("HSW_APPDATA"); appdata_spec && *appdata_spec) {
-		SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "HSW_APPDATA=%s", appdata_spec);
+		LogDebug("HSW_APPDATA=%s", appdata_spec);
 		result.set_appdata(vanilla::open_stdio(appdata_spec));
 
 		char buffer[32];
 		for (int i = 0; i < 1024; ++i) {
 			ham_sprintf(buffer, "HSW_ASSETS_%d", i);
 			if (const char* asset_spec = SDL_getenv(buffer); asset_spec && *asset_spec) {
-				SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "%s=%s", buffer, asset_spec);
+				LogDebug("%s=%s", buffer, asset_spec);
 				auto mount = init_vfs_spec_str(buffer, asset_spec);
 				if (mount.vfs) {
 					result.push_back(std::move(mount));
@@ -349,7 +349,7 @@ const char* EscapeBinDirectory() {
 			perror("EscapeBinDirectory: getcwd");
 			ham_strcpy(bin_dir_buf, ".");
 		}
-		if (vanilla::ends_with(bin_dir_buf, "/build/install") || vanilla::ends_with(bin_dir_buf, "\\build\\install")) {
+		if (std::string_view(bin_dir_buf).ends_with("/build/install") || std::string_view(bin_dir_buf).ends_with("\\build\\install")) {
 			if (chdir("../..") < 0) {
 				perror("EscapeBinDirectory: chdir");
 			}
@@ -427,7 +427,7 @@ static void filter_files(std::set<std::string, vanilla::CaseInsensitive>* files,
 	if (extension || maxlen > 0)
 	{
 		size_t extlen = extension ? strlen(extension) : 0;
-		erase_if(*files, [=](const std::string& value)
+		std::erase_if(*files, [=](const std::string& value)
 		{
 			size_t len = value.size();
 			if (maxlen > 0 && len >= maxlen)
@@ -466,12 +466,12 @@ static void import_addons(VfsStack* target)
 	{
 		if (spec.is_enabled())
 		{
-			SDL_Log("mounting addon: %s/%s", path.c_str(), spec.filename.c_str());
+			LogInfo("mounting addon: %s/%s", path.c_str(), spec.filename.c_str());
 			target->push_back(vanilla::open_zip(addons->open_sdl(spec.filename.c_str())), "", vanilla::VfsSourceKind::Addon);
 		}
 		else
 		{
-			SDL_Log("addon disabled: %s/%s", path.c_str(), spec.filename.c_str());
+			LogInfo("addon disabled: %s/%s", path.c_str(), spec.filename.c_str());
 		}
 	}
 
@@ -490,9 +490,10 @@ static VfsStack vfs_stack;
 
 void AppdataInit(const HamSandwichMetadata* metadata) {
 	globalMetadata = metadata;
-	LogInit();
+	LogInit(); // Set up our logging function.
 	EscapeBinDirectory();
 	vfs_stack = init_vfs_stack();
+	LogInit(); // Actually open `error.log`.
 	import_addons(&vfs_stack);
 }
 
@@ -504,11 +505,11 @@ vanilla::VfsStack* Vfs() {
 	return &vfs_stack;
 }
 
-owned::SDL_RWops AppdataOpen(const char* filename) {
+owned::SDL_IOStream AppdataOpen(const char* filename) {
 	return vfs_stack.open_sdl(filename);
 }
 
-owned::SDL_RWops AppdataOpen_Write(const char* filename) {
+owned::SDL_IOStream AppdataOpen_Write(const char* filename) {
 	return vfs_stack.open_write_sdl(filename);
 }
 

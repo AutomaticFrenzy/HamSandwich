@@ -3,7 +3,8 @@
 Once a wrapper around SciTech Multi-platform Graphics Library;
 then Allegro;
 briefly PixelToaster;
-now SDL2.
+SDL2 from 2017-2026,
+now SDL3.
 
 */
 
@@ -11,7 +12,7 @@ now SDL2.
 #define HAM_MGLDRAW_H
 
 #include <memory>
-#include <SDL.h>
+#include <SDL3/SDL.h>
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -28,7 +29,7 @@ typedef RGB PALETTE[256];
 
 class SoftJoystick;
 
-class MGLDraw
+class HAM_API MGLDraw
 {
 public:
 	MGLDraw(const char *name, int xRes, int yRes, bool window);
@@ -95,11 +96,12 @@ public:
 
 	// Like SDL's text input functions but in MGL coordinates.
 	void StartTextInput(int x, int y, int x2, int y2);
-	static void StopTextInput();
+	void StopTextInput();
 
 	// mouse functions
 	void GetMouse(int *x, int *y);
 	void SetMouse(int x, int y);
+	void SetMouseRelative(bool relative);
 	bool MouseDown();
 	bool RMouseDown();
 	bool MouseTap();
@@ -137,18 +139,20 @@ protected:
 	SDL_Texture *texture;
 	std::unique_ptr<RGB[]> buffer;
 
+	SDL_Texture *prevTexture;
+
 	friend class SoftJoystick;
 	std::unique_ptr<SoftJoystick> softJoystick;
 };
 
-void FatalError(const char *msg);
+HAM_API void FatalError(const char *msg);
 
-void SeedRNG(void);
-dword Random(dword range);
-int MGL_random(int range);
-long MGL_randoml(long range);
-void MGL_srand(int seed);
+HAM_API void SeedRNG(void);
+HAM_API dword Random(dword range);
+HAM_API int MGL_random(int range);
+HAM_API long MGL_randoml(long range);
+HAM_API void MGL_srand(int seed);
 
-bool GetGameIdle();
+HAM_API bool GetGameIdle();
 
 #endif

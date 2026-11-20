@@ -1,6 +1,7 @@
 #include "world.h"
 #include "player.h"
 #include "appdata.h"
+#include "log.h"
 
 byte NewWorld(world_t *world, MGLDraw *mgl)
 {
@@ -31,20 +32,16 @@ byte LoadWorld(world_t *world, const char *fname)
 	if (!f)
 		return 0;
 
-#ifdef LOG
-	SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "LOADWORLD %s\n", fname);
-#endif
+	LogVerbose("LOADWORLD %s\n", fname);
 
-	SDL_RWread(f, &world->numMaps, 1, 1);
-	SDL_RWread(f, &world->totalPoints, 1, 4);
+	SDL_ReadIO(f, &world->numMaps, 1);
+	SDL_ReadIO(f, &world->totalPoints, 4);
 
-#ifdef LOG
-	SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Maps: %d\n", world->numMaps);
-#endif
+	LogVerbose("Maps: %d\n", world->numMaps);
 
 	LoadTiles(f.get());
 
-	SDL_RWread(f, world->terrain, 200, sizeof (terrain_t));
+	SDL_ReadIO(f, world->terrain, 200 * sizeof (terrain_t));
 
 	for (i = 0; i < MAX_MAPS; i++)
 		world->map[i] = NULL;
@@ -77,12 +74,12 @@ byte SaveWorld(world_t *world, const char *fname)
 	if (!f)
 		return 0;
 
-	SDL_RWwrite(f, &world->numMaps, 1, 1);
-	SDL_RWwrite(f, &world->totalPoints, 1, sizeof (int));
+	SDL_WriteIO(f, &world->numMaps, 1);
+	SDL_WriteIO(f, &world->totalPoints, sizeof (int));
 
 	SaveTiles(f.get());
 
-	SDL_RWwrite(f, world->terrain, 200, sizeof (terrain_t));
+	SDL_WriteIO(f, world->terrain, 200 * sizeof (terrain_t));
 
 	for (i = 0; i < world->numMaps; i++)
 		world->map[i]->Save(f.get());
@@ -133,9 +130,9 @@ void GetWorldName(const char *fname, char *buf)
 	//   the 200 terrain types, the width&height of map 0, and bam there it is at the name
 	//   of map 0.
 
-	SDL_RWseek(f, 1 + sizeof (int) + 400 * 32 * 24 + 200 * sizeof (terrain_t) + 2 * sizeof (int), RW_SEEK_SET);
+	SDL_SeekIO(f, 1 + sizeof (int) + 400 * 32 * 24 + 200 * sizeof (terrain_t) + 2 * sizeof (int), SDL_IO_SEEK_SET);
 	// read the name
-	SDL_RWread(f, buf, 1, 32);
+	SDL_ReadIO(f, buf, 32);
 }
 
 int GetWorldPoints(const char *fname)
@@ -152,8 +149,8 @@ int GetWorldPoints(const char *fname)
 		return 100;
 
 	// skip over the byte
-	SDL_RWread(f, &i, 1, 1);
+	SDL_ReadIO(f, &i, 1);
 	// read the int totalPoints
-	SDL_RWread(f, &i, 1, 4);
+	SDL_ReadIO(f, &i, 4);
 	return i;
 }

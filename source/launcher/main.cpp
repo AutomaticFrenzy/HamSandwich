@@ -8,11 +8,12 @@
 #include <string>
 #include <fstream>
 #include <sstream>
-#include <SDL.h>
-#include <SDL_image.h>
+#include <SDL3/SDL.h>
+#include <SDL3/SDL_main.h>
+#include <SDL3_image/SDL_image.h>
 #include <imgui.h>
-#include <imgui_impl_sdl.h>
-#include <imgui_impl_sdlrenderer.h>
+#include <imgui_impl_sdl3.h>
+#include <imgui_impl_sdlrenderer3.h>
 #include <json.h>
 #include <curl/curl.h>
 #include "jamulfont.h"
@@ -70,7 +71,7 @@ extern const size_t embed_verdana_size;
 void Verdana(ImGuiIO* io)
 {
 	mfont_t jamfont;
-	if (FontLoad(owned::SDL_RWFromConstMem(embed_verdana, embed_verdana_size).get(), &jamfont) != FONT_OK)
+	if (FontLoad(owned::SDL_IOFromConstMem(embed_verdana, embed_verdana_size).get(), &jamfont) != FONT_OK)
 		return;
 
 	ImFontConfig config;
@@ -89,24 +90,25 @@ void Verdana(ImGuiIO* io)
 
 	for (int c = 0; c < jamfont.numChars; ++c)
 	{
-		if (const ImFontAtlasCustomRect* rect = io->Fonts->GetCustomRectByIndex(rect_ids[c]))
+		ImFontAtlasRect rect;
+		io->Fonts->GetCustomRect(rect_ids[c], &rect);
+		auto chrWidth = *(jamfont.chars[c]);
+		auto src = jamfont.chars[c] + 1;
+		for (int y = 0; y < jamfont.height; y++)
 		{
-			auto chrWidth = *(jamfont.chars[c]);
-			auto src = jamfont.chars[c] + 1;
-			for (int y = 0; y < jamfont.height; y++)
-			{
-				ImU32* dst = (ImU32*)tex_pixels + (rect->Y + y + 1) * tex_width + (rect->X);
+			ImU32* dst = (ImU32*)tex_pixels + (rect.y + y + 1) * tex_width + (rect.x);
 
-				for (int x = 0; x < chrWidth; x++)
-				{
-					if (*src)
-						*dst = IM_COL32(255, 255, 255, 255);
-					dst++;
-					src++;
-				}
+			for (int x = 0; x < chrWidth; x++)
+			{
+				if (*src)
+					*dst = IM_COL32(255, 255, 255, 255);
+				dst++;
+				src++;
 			}
 		}
 	}
+
+	FontFree(&jamfont);
 }
 
 // Embedded metadata json and embedded icons for each game.
@@ -555,7 +557,7 @@ struct Launcher
 void CopyToAddonsFolder(std::string_view addonsFolder, std::string_view sourcePath)
 {
 	// .zip files only
-	if (!vanilla::ends_with(sourcePath, ".zip"))
+	if (!sourcePath.ends_with(".zip"))
 	{
 		return;
 	}
@@ -940,19 +942,20 @@ int main(int argc, char** argv)
 
 	// Setup SDL
 	// (Some versions of SDL before <2.0.10 appears to have performance/stalling issues on a minority of Windows systems,
-	// depending on whether SDL_INIT_GAMECONTROLLER is enabled or disabled.. updating to latest version of SDL is recommended!)
-	if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_GAMECONTROLLER) != 0)
+	// depending on whether SDL_INIT_GAMEPAD is enabled or disabled.. updating to latest version of SDL is recommended!)
+	if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD))
 	{
-		printf("Error: %s\n", SDL_GetError());
+		printf("SDL_Init: %s\n", SDL_GetError());
 		return -1;
 	}
 
 	// Setup window
-	SDL_WindowFlags window_flags = (SDL_WindowFlags)(SDL_WINDOW_ALLOW_HIGHDPI);
-	SDL_Window* window = SDL_CreateWindow("HamSandwich Launcher", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1024, 480, window_flags);
-	SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, 0);
+	SDL_WindowFlags window_flags = (SDL_WindowFlags)(SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_HIDDEN);
+	SDL_Window* window = SDL_CreateWindow("HamSandwich Launcher", 1024, 480, window_flags);
+	SDL_Renderer* renderer = SDL_CreateRenderer(window, nullptr);
+	SDL_ShowWindow(window);
 	bool vsync = true; // Enable vsync initially.
-	SDL_RenderSetVSync(renderer, vsync);
+	SDL_SetRenderVSync(renderer, vsync);
 
 	// Setup Dear ImGui context
 	IMGUI_CHECKVERSION();
@@ -967,8 +970,8 @@ int main(int argc, char** argv)
 	//ImGui::StyleColorsClassic();
 
 	// Setup Platform/Renderer backends
-	ImGui_ImplSDL2_InitForSDLRenderer(window, renderer);
-	ImGui_ImplSDLRenderer_Init(renderer);
+	ImGui_ImplSDL3_InitForSDLRenderer(window, renderer);
+	ImGui_ImplSDLRenderer3_Init(renderer);
 
 	// Load Fonts
 	// - If no fonts are loaded, dear imgui will use the default font. You can also load multiple fonts and use ImGui::PushFont()/PopFont() to select them.
@@ -992,7 +995,7 @@ int main(int argc, char** argv)
 	{
 		if (game.icon)
 		{
-			auto img = ReadIcoFile(owned::SDL_RWFromConstMem(game.icon->data, game.icon->size), 32);
+			auto img = ReadIcoFile(owned::SDL_IOFromConstMem(game.icon->data, game.icon->size), 32);
 			if (img)
 			{
 				// For best results, bake a 32x32 PNG frame into the .ico file.
@@ -1001,7 +1004,7 @@ int main(int argc, char** argv)
 			}
 			else
 			{
-				printf("Failed to load %s icon: %s\n", game.id.c_str(), IMG_GetError());
+				printf("Failed to load %s icon: %s\n", game.id.c_str(), SDL_GetError());
 			}
 		}
 	}
@@ -1011,7 +1014,7 @@ int main(int argc, char** argv)
 		const Icon* icon = launcher.icons_by_id["jspedit"];
 		if (icon)
 		{
-			auto img = ReadIcoFile(owned::SDL_RWFromConstMem(icon->data, icon->size), 32);
+			auto img = ReadIcoFile(owned::SDL_IOFromConstMem(icon->data, icon->size), 32);
 			if (img)
 			{
 				jspedit_icon = LoadedIcon(renderer, img.get());
@@ -1028,7 +1031,7 @@ int main(int argc, char** argv)
 		if (vsync != newVsync)
 		{
 			vsync = newVsync;
-			SDL_RenderSetVSync(renderer, vsync);
+			SDL_SetRenderVSync(renderer, vsync);
 		}
 
 		// Poll and handle events (inputs, window resize, etc.)
@@ -1039,16 +1042,13 @@ int main(int argc, char** argv)
 		SDL_Event event;
 		while (SDL_PollEvent(&event))
 		{
-			ImGui_ImplSDL2_ProcessEvent(&event);
-			if (event.type == SDL_QUIT)
+			ImGui_ImplSDL3_ProcessEvent(&event);
+			if (event.type == SDL_EVENT_QUIT)
 				done = true;
-			if (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_CLOSE && event.window.windowID == SDL_GetWindowID(window))
+			else if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED && event.window.windowID == SDL_GetWindowID(window))
 				done = true;
-			if (event.type == SDL_DROPFILE)
-			{
-				CopyToAddonsFolder(launcher.current_game->addons_folder, event.drop.file);
-				SDL_free(event.drop.file);
-			}
+			else if (event.type == SDL_EVENT_DROP_FILE)
+				CopyToAddonsFolder(launcher.current_game->addons_folder, event.drop.data);
 		}
 
 		int windowWidth, windowHeight;
@@ -1056,8 +1056,8 @@ int main(int argc, char** argv)
 		SDL_GetWindowSize(window, &windowWidth, &windowHeight);
 
 		// Start the Dear ImGui frame
-		ImGui_ImplSDLRenderer_NewFrame();
-		ImGui_ImplSDL2_NewFrame();
+		ImGui_ImplSDLRenderer3_NewFrame();
+		ImGui_ImplSDL3_NewFrame();
 		ImGui::NewFrame();
 
 		ImGui::SetNextWindowPos({ 0, 0 });
@@ -1095,12 +1095,11 @@ int main(int argc, char** argv)
 					ImGui::SameLine(8);
 					ImGui::SetCursorPosY(ImGui::GetCursorPosY() + vertical_padding);
 					ImGui::Image((void*)(intptr_t)game.loaded_icon.texture, { 32, 32 });
-					ImGui::SetCursorPosY(ImGui::GetCursorPosY() - vertical_padding);
 				}
 				ImGui::SameLine(48);
-				ImGui::SetCursorPosY(ImGui::GetCursorPosY() + (8 + vertical_padding));
+				ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 8 + 2 * vertical_padding);
 				ImGui::Text("%s", game.title.c_str());
-				ImGui::SetCursorPosY(ImGui::GetCursorPosY() - (8 + vertical_padding));
+				ImGui::SetCursorPosY(ImGui::GetCursorPosY() + vertical_padding);
 				ImGui::PopID();
 			}
 
@@ -1122,12 +1121,10 @@ int main(int argc, char** argv)
 				ImGui::SameLine(8 + 2);
 				ImGui::SetCursorPosY(ImGui::GetCursorPosY() + (vertical_padding + selectable_padding));
 				ImGui::Image((void*)(intptr_t)jspedit_icon.texture, { 32, 32 });
-				ImGui::SetCursorPosY(ImGui::GetCursorPosY() - (vertical_padding + selectable_padding));
 			}
 			ImGui::SameLine(48);
-			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + (8 + vertical_padding - selectable_padding));
+			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 8 + 2 * vertical_padding);
 			ImGui::Text("JspEdit 3");
-			ImGui::SetCursorPosY(ImGui::GetCursorPosY() - (8 + vertical_padding - selectable_padding));
 			ImGui::PopID();
 
 #ifdef GIT_VERSION
@@ -1146,7 +1143,7 @@ int main(int argc, char** argv)
 			window_title.append("###current_game");
 			ImGui::Begin(window_title.c_str(), nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoFocusOnAppearing);
 
-			float paneWidth = ImGui::GetContentRegionAvail().x + 16;
+			float paneWidth = ImGui::GetContentRegionAvail().x + 8;
 
 			// ----------------------------------------------------------------
 			// Play button
@@ -1349,7 +1346,7 @@ int main(int argc, char** argv)
 		ImGui::Render();
 		SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
 		SDL_RenderClear(renderer);
-		ImGui_ImplSDLRenderer_RenderDrawData(ImGui::GetDrawData());
+		ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), renderer);
 		SDL_RenderPresent(renderer);
 
 		if (launcher.current_game && launcher.current_game->is_ready_to_play())
@@ -1374,8 +1371,8 @@ int main(int argc, char** argv)
 	launcher.downloads.reset();
 	curl_global_cleanup();
 
-	ImGui_ImplSDLRenderer_Shutdown();
-	ImGui_ImplSDL2_Shutdown();
+	ImGui_ImplSDLRenderer3_Shutdown();
+	ImGui_ImplSDL3_Shutdown();
 	ImGui::DestroyContext();
 
 	SDL_DestroyRenderer(renderer);

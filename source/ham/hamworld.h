@@ -16,13 +16,13 @@ namespace hamworld {
 
 using std::string_view;
 
-size_t size_varint(size_t id);
-void write_varint(std::ostream& o, size_t id);
-void write_string(std::ostream& o, string_view s);
-bool read_varint(std::istream& i, size_t* id);
-bool read_string(std::istream& i, StringDestination buffer);
+HAM_API size_t size_varint(size_t id);
+HAM_API void write_varint(std::ostream& o, size_t id);
+HAM_API void write_string(std::ostream& o, string_view s);
+HAM_API bool read_varint(std::istream& i, size_t* id);
+HAM_API bool read_string(std::istream& i, StringDestination buffer);
 
-class Section final
+class HAM_API Section final
 {
 public:
 	std::stringstream stream;
@@ -36,9 +36,9 @@ public:
 	std::string save();
 };
 
-class Save final
+class HAM_API Save final
 {
-	owned::SDL_RWops stream;
+	owned::SDL_IOStream stream;
 	SdlRwStream output;
 public:
 	explicit Save(const char* fname);
@@ -48,9 +48,9 @@ public:
 	void section(string_view name, string_view data);
 };
 
-class Load final
+class HAM_API Load final
 {
-	owned::SDL_RWops stream;
+	owned::SDL_IOStream stream;
 	SdlRwStream input;
 public:
 	explicit Load(const char* fname);

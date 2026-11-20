@@ -3,7 +3,7 @@
 #include "control.h"
 #include "display.h"
 #include "guy.h"
-#include "hammusic.h"
+#include "jamulsound.h"
 #include "jamulspr.h"
 #include "loop.h"
 #include "title.h"
@@ -68,7 +68,7 @@ void LoadConfig()
 	}
 	else
 	{
-		SDL_RWread(f, &g_Config, 1, 0x2ec);
+		SDL_ReadIO(f, &g_Config, 0x2ec);
 		f.reset();
 	}
 	ApplyKeyConfigs();
@@ -85,7 +85,9 @@ void SaveConfig()
 	strcpy(g_Config.registrationCode, "00000000");
 	g_Config.registrationIdx = 0;
 	auto f = AppdataOpen_Write("amazin.cfg");
-	SDL_RWwrite(f, &g_Config, 1, 0x2ec);
+	SDL_WriteIO(f, &g_Config, 0x2ec);
+	f.reset();
+	AppdataSync();
 }
 
 void ApplyKeyConfigs()

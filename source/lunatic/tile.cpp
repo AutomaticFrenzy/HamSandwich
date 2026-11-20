@@ -35,14 +35,14 @@ void SetTiles(byte *scrn)
 	}
 }
 
-void SaveTiles(SDL_RWops *f)
+void SaveTiles(SDL_IOStream *f)
 {
-	SDL_RWwrite(f, tiles, NUMTILES, sizeof (tile_t));
+	SDL_WriteIO(f, tiles, NUMTILES * sizeof (tile_t));
 }
 
-void LoadTiles(SDL_RWops *f)
+void LoadTiles(SDL_IOStream *f)
 {
-	SDL_RWread(f, tiles, NUMTILES, sizeof (tile_t));
+	SDL_ReadIO(f, tiles, NUMTILES * sizeof (tile_t));
 }
 
 // --- RENDERING!
@@ -574,7 +574,7 @@ void RenderFloorTileFancy(int x, int y, int t, byte shadow, char *theLight)
 
 	if (!opt.smoothLight)
 	{
-		if (shadow == 1 || shadow == 2)
+		if (shadow == 1 || shadow == 2 || shadow == 6)
 			RenderFloorTileShadow(x, y, t, theLight[4]);
 		else
 			RenderFloorTile(x, y, t, theLight[4]);

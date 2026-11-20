@@ -46,8 +46,8 @@ bool LoadWorld(world_t *world,const char *fname)
 	if(!f)
 		return false;
 
-	SDL_RWread(f, code, sizeof(char), 8);
-	SDL_RWseek(f, 0, RW_SEEK_SET);
+	SDL_ReadIO(f, code, 8);
+	SDL_SeekIO(f, 0, SDL_IO_SEEK_SET);
 	code[8]='\0';
 
 	if(!strcmp(code, "HAMSWCH!"))
@@ -74,14 +74,14 @@ bool SaveWorld(const world_t *world, const char *fname)
 	if (!Supreme_CanSaveWorld(world))
 	{
 		// Save HamSandwich world.
-		printf("Saving HamSandwich world: %s\n", fname);
+		LogInfo("Saving HamSandwich world: %s", fname);
 		Ham_SaveWorld(world, fname);
 		// Save old world as backup.
 		namebuf = fname;
 		namebuf.append("_old");
 		fname = namebuf.c_str();
 	}
-	printf("Saving Supreme world: %s\n", fname);
+	LogInfo("Saving Supreme world: %s", fname);
 
 	auto f = AppdataOpen_Write(fname);
 	if(!f)
@@ -99,11 +99,11 @@ bool GetWorldName(const char *fname, StringDestination name, StringDestination a
 {
 	char code[9];
 
-	owned::SDL_RWops f = AppdataOpen(fname);
+	owned::SDL_IOStream f = AppdataOpen(fname);
 	if(!f)
 		return false;
 
-	SDL_RWread(f,code,sizeof(char),8);
+	SDL_ReadIO(f,code,8);
 	code[8]='\0';
 
 	if(!strcmp(code,"HAMSWCH!"))

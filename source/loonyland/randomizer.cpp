@@ -549,7 +549,7 @@ void RenderRandomizerMenu(MGLDraw* mgl)
 	}
 
 	char genBuf[64];
-	span<char> remaining = ham_strcpy(genBuf, "Generate");
+	std::span<char> remaining = ham_strcpy(genBuf, "Generate");
 	if (genTries)
 	{
 		remaining = ham_sprintf(remaining, ": %d tries", genTries);
@@ -709,7 +709,7 @@ bool CheckBeatable(std::vector<RandoLocation>& locs) {
 
 			return false;
 		}
-		//printf("%d locations\n", foundItems);
+		//LogDebug("%d locations", foundItems);
 		collectedItems.insert(tempItems.begin(), tempItems.end());
 		tempItems.clear();
 		sphere++;
@@ -742,9 +742,9 @@ void PlaceItems(std::vector<RandoLocation>& locList)
 	sprintf(buff, "randomizer/%s rando.llw", seed.c_str());
 	auto newWorld = AppdataOpen_Write(buff);
 
-	while (int n = SDL_RWread(baseWorld, buff, 1, 4096))
+	while (int n = SDL_ReadIO(baseWorld, buff, 4096))
 	{
-		SDL_RWwrite(newWorld, buff, 1, 4096);
+		SDL_WriteIO(newWorld, buff, n);
 	}
 
 	newWorld.reset();

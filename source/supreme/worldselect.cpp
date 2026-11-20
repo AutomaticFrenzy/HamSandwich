@@ -10,11 +10,11 @@
 #include "shop.h"
 #include "hiscore.h"
 #include "appdata.h"
-#include "erase_if.h"
 #include "vanilla_extract.h"
 #include "steam.h"
 #include "leaderboard.h"
 #include "strnatcmp.h"
+#include "log.h"
 
 enum Done : byte
 {
@@ -241,10 +241,10 @@ void InputWorld(const char *fname)
 	profile.progress.totalWorlds = list.size();
 }
 
-TASK(void) ScanWorlds(void)
+TASK(bool) ScanWorlds(void)
 {
 	std::vector<std::string> files = ListDirectory("worlds", ".dlw", 32);
-	erase_if(files, [](const std::string& name) {
+	std::erase_if(files, [](const std::string& name) {
 		return name == "backup_load.dlw"
 			|| name == "backup_exit.dlw"
 			|| name == "backup_save.dlw";
@@ -265,8 +265,13 @@ TASK(void) ScanWorlds(void)
 			start = now;
 			GetDisplayMGL()->FillBox(20,440,20+(done*600)/count,450,32*1+16);
 			AWAIT GetDisplayMGL()->Flip();
+			if (!GetDisplayMGL()->Process() || GetDisplayMGL()->LastKeyPressed() == 27)
+			{
+				CO_RETURN false;
+			}
 		}
 	}
+	CO_RETURN true;
 }
 
 void CalcScrollBar(void)
@@ -402,7 +407,7 @@ void MoveToNewWorld(void)
 	PrepWorld();
 }
 
-TASK(void) InitWorldSelect(MGLDraw *mgl)
+TASK(bool) InitWorldSelect(MGLDraw *mgl)
 {
 	int i;
 
@@ -420,7 +425,9 @@ TASK(void) InitWorldSelect(MGLDraw *mgl)
 	listPos=0;
 
 	list.clear();
-	AWAIT ScanWorlds();
+	PlaySongForce("003worldpicker.ogg");
+	if (!AWAIT ScanWorlds())
+		CO_RETURN false;
 	SortWorlds(sortType,sortDir);
 	SelectLastWorld();
 	CalcScrollBar();
@@ -429,11 +436,11 @@ TASK(void) InitWorldSelect(MGLDraw *mgl)
 	wsSpr = std::make_unique<sprite_set_t>("graphics/pause.jsp");
 	msBright=0;
 	msDBright=1;
-	PlaySongForce("003worldpicker.ogg");
 	mouseZ=mgl->mouse_z;
 
 	curButton = ButtonId::WorldList;
 	oldGamepad = ~0;
+	CO_RETURN true;
 }
 
 void ExitWorldSelect(void)
@@ -867,13 +874,13 @@ TASK(Done) UpdateWorldSelect(int *lastTime,MGLDraw *mgl)
 		}
 
 		byte scan = LastScanCode();
-		if (scan == SDL_SCANCODE_PAGEUP || (gamepad & ~oldGamepad & (1 << SDL_CONTROLLER_BUTTON_LEFTSHOULDER))) {
+		if (scan == SDL_SCANCODE_PAGEUP || (gamepad & ~oldGamepad & (1 << SDL_GAMEPAD_BUTTON_LEFT_SHOULDER))) {
 			listPos = std::max(listPos - WORLDS_PER_SCREEN, 0);
 			choice = std::max(choice - WORLDS_PER_SCREEN, 0);
 			CalcScrollBar();
 			MoveToNewWorld();
 		}
-		if (scan == SDL_SCANCODE_PAGEDOWN || (gamepad & ~oldGamepad & (1 << SDL_CONTROLLER_BUTTON_RIGHTSHOULDER))) {
+		if (scan == SDL_SCANCODE_PAGEDOWN || (gamepad & ~oldGamepad & (1 << SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER))) {
 			listPos = std::min(listPos + WORLDS_PER_SCREEN, (int)list.size() - WORLDS_PER_SCREEN);
 			choice = std::min(choice + WORLDS_PER_SCREEN, (int)list.size() - 1);
 			CalcScrollBar();
@@ -962,13 +969,13 @@ TASK(Done) UpdateWorldSelect(int *lastTime,MGLDraw *mgl)
 #ifdef WORLD_DEBUGGING
 		if (showFilenames && scan == SDL_SCANCODE_KP_PLUS)
 		{
-			printf("Verifying world: %s\n", tmpWorld.map[0]->name);
+			LogDebug("Verifying world: %s", tmpWorld.map[0]->name);
 
 			std::set<dword> seen;
 			std::vector<dword> ordered;
 
-			owned::SDL_RWops input = AppdataOpen("worlds/levels.dat");
-			for (dword item; SDL_RWread(input, &item, sizeof(dword), 1) == 1;)
+			owned::SDL_IOStream input = AppdataOpen("worlds/levels.dat");
+			for (dword item; SDL_ReadIO(input, &item, sizeof(dword)) == sizeof(dword);)
 			{
 				seen.insert(item);
 				ordered.push_back(item);
@@ -982,20 +989,21 @@ TASK(Done) UpdateWorldSelect(int *lastTime,MGLDraw *mgl)
 				{
 					seen.insert(item);
 					ordered.push_back(item);
-					printf("Adding: %s\n", tmpWorld.map[i]->name);
+					LogDebug("Adding: %s", tmpWorld.map[i]->name);
 				}
 				else
 				{
-					printf("Already verified: %s\n", tmpWorld.map[i]->name);
+					LogDebug("Already verified: %s", tmpWorld.map[i]->name);
 				}
 			}
 
 			auto output = AppdataOpen_Write("worlds/levels.dat");
 			for (dword item : ordered)
 			{
-				SDL_RWwrite(output, &item, sizeof(dword), 1);
+				SDL_WriteIO(output, &item, sizeof(dword));
 			}
 			output.reset();
+			AppdataSync();
 
 			FetchScores(0);
 		}
@@ -1038,7 +1046,11 @@ TASK(Done) UpdateWorldSelect(int *lastTime,MGLDraw *mgl)
 					else
 						EraseHighScores(&tmpWorld);
 					ExitWorldSelect();
-					AWAIT InitWorldSelect(mgl);
+					if (!AWAIT InitWorldSelect(mgl))
+					{
+						oldc=255;
+						CO_RETURN WS_EXIT;
+					}
 					break;
 				case ButtonId::No:
 					MakeNormalSound(SND_MENUSELECT);
@@ -1049,7 +1061,7 @@ TASK(Done) UpdateWorldSelect(int *lastTime,MGLDraw *mgl)
 			}
 		}
 
-		if ((c & ~oldc & CONTROL_B2) || (gamepad & ~oldGamepad & (1 << SDL_CONTROLLER_BUTTON_BACK)))
+		if ((c & ~oldc & CONTROL_B2) || (gamepad & ~oldGamepad & (1 << SDL_GAMEPAD_BUTTON_BACK)))
 		{
 			MakeNormalSound(SND_MENUSELECT);
 			mode = MODE_PICKWORLD;
@@ -1289,7 +1301,8 @@ TASK(byte) WorldSelectMenu(MGLDraw *mgl)
 	int lastTime=1;
 	char fname[32];
 
-	AWAIT InitWorldSelect(mgl);
+	if (!AWAIT InitWorldSelect(mgl))
+		CO_RETURN 1;
 
 	if(list.empty())
 		CO_RETURN 1;	// just skip it if there are no worlds!
@@ -1313,7 +1326,10 @@ TASK(byte) WorldSelectMenu(MGLDraw *mgl)
 			{
 				CO_RETURN 1;
 			}
-			AWAIT InitWorldSelect(mgl);
+			if (!AWAIT InitWorldSelect(mgl))
+			{
+				CO_RETURN 1;
+			}
 			done=WS_CONTINUE;
 		}
 		EndClock();

@@ -3,14 +3,15 @@
 
 #include <istream>
 #include <memory>
+#include "jamultypes.h"
 
-struct SDL_RWops;
+struct SDL_IOStream;
 
-class SdlRwStream : public std::iostream
+class HAM_API SdlRwStream : public std::iostream
 {
 	std::unique_ptr<std::streambuf> sb;
 public:
-	explicit SdlRwStream(SDL_RWops *f);
+	explicit SdlRwStream(SDL_IOStream *f);
 };
 
 #endif  // IOEXT_H

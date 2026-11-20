@@ -1,6 +1,6 @@
 #include "gui.h"
 #include <string>
-#include <SDL.h>
+#include <SDL3/SDL.h>
 
 Gui::Gui()
     : mx(0)
@@ -11,12 +11,12 @@ Gui::Gui()
 
 bool Gui::handleEvent(const SDL_Event &evt) {
     switch (evt.type) {
-    case SDL_MOUSEMOTION:
+    case SDL_EVENT_MOUSE_MOTION:
         mx = evt.motion.x;
         my = evt.motion.y;
         return false;
 
-    case SDL_MOUSEBUTTONDOWN:
+    case SDL_EVENT_MOUSE_BUTTON_DOWN:
         mx = evt.button.x;
         my = evt.button.y;
         if (evt.button.button == 1) {
@@ -24,22 +24,22 @@ bool Gui::handleEvent(const SDL_Event &evt) {
         }
         return false;
 
-    case SDL_MOUSEBUTTONUP:
+    case SDL_EVENT_MOUSE_BUTTON_UP:
         mx = evt.button.x;
         my = evt.button.y;
         return false;
 
-    case SDL_KEYDOWN: {
+    case SDL_EVENT_KEY_DOWN: {
         int mod = SDL_GetModState(), mod2 = 0;
         // Expand L/R hotkeys to match
-        if (mod & KMOD_SHIFT)
-            mod2 |= KMOD_SHIFT;
-        if (mod & KMOD_CTRL)
-            mod2 |= KMOD_CTRL;
-        if (mod & KMOD_ALT)
-            mod2 |= KMOD_ALT;
+        if (mod & SDL_KMOD_SHIFT)
+            mod2 |= SDL_KMOD_SHIFT;
+        if (mod & SDL_KMOD_CTRL)
+            mod2 |= SDL_KMOD_CTRL;
+        if (mod & SDL_KMOD_ALT)
+            mod2 |= SDL_KMOD_ALT;
 
-        justTyped = { mod2, evt.key.keysym.scancode };
+        justTyped = { mod2, evt.key.scancode };
         return false;
     }
 
@@ -54,20 +54,22 @@ bool Gui::element(SDL_Rect r, const std::string &text, const std::string &desc, 
     bool hovered = rect_contains(r, mx, my);
     bool focused = hovered && justClicked;
 
+	SDL_FRect fr = { (float)r.x, (float)r.y, (float)r.w, (float)r.h };
+
     if (focused) {
         SDL_SetRenderDrawColor(renderer, 230, 230, 230, 255);
-        SDL_RenderFillRect(renderer, &r);
+        SDL_RenderFillRect(renderer, &fr);
     } else if (hovered || isHighlight) {
         SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-        SDL_RenderFillRect(renderer, &r);
+        SDL_RenderFillRect(renderer, &fr);
         isHighlight = false;
     }
 
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-    SDL_RenderDrawLine(renderer, r.x - 1, r.y, r.x - 1, r.y + r.h - 1);
-    SDL_RenderDrawLine(renderer, r.x + r.w, r.y, r.x + r.w, r.y + r.h - 1);
-    SDL_RenderDrawLine(renderer, r.x, r.y - 1, r.x + r.w - 1, r.y - 1);
-    SDL_RenderDrawLine(renderer, r.x, r.y + r.h, r.x + r.w - 1, r.y + r.h);
+    SDL_RenderLine(renderer, r.x - 1, r.y, r.x - 1, r.y + r.h - 1);
+    SDL_RenderLine(renderer, r.x + r.w, r.y, r.x + r.w, r.y + r.h - 1);
+    SDL_RenderLine(renderer, r.x, r.y - 1, r.x + r.w - 1, r.y - 1);
+    SDL_RenderLine(renderer, r.x, r.y + r.h, r.x + r.w - 1, r.y + r.h);
 
     DrawText(renderer, r.x + r.w / 2, r.y + 2, ALIGN_CENTER, black, text);
 
@@ -85,11 +87,11 @@ void Gui::render() {
 		int width = FontStrLen(tooltip, gFont);
 		int height = gFont->height + 3;
 
-        SDL_Rect rect = { mx + 12, my, width + 8, height + 8 };
+        SDL_FRect rect = { (float)(mx + 12), (float)my, (float)(width + 8), (float)(height + 8) };
         SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
         SDL_RenderFillRect(renderer, &rect);
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-        SDL_RenderDrawRect(renderer, &rect);
+        SDL_RenderRect(renderer, &rect);
 
 		DrawText(renderer, mx + 18, my + 4, ALIGN_LEFT, { 0, 0, 0, 255 }, tooltip);
 

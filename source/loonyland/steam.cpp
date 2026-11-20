@@ -1,7 +1,7 @@
 #define __STDC_FORMAT_MACROS
 #include "steam.h"
 #include <memory>
-#include "openurl.h"
+#include <SDL3/SDL_misc.h>
 
 void SteamManager::OpenURLOverlay(const char *url)
 {
@@ -22,7 +22,6 @@ void SteamManager::OpenURLOverlay(const char *url)
 #include "log.h"
 #include "appdata.h"
 #include "vanilla_extract.h"
-#include "erase_if.h"
 #include "highscore.h"
 #include "string_extras.h"
 #include "steam_utils.inl"
@@ -50,7 +49,7 @@ public:
 
 		if (!SteamUserStats()->RequestCurrentStats())
 		{
-			SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SteamUserStats::RequestCurrentStats() failed");
+			LogError("SteamUserStats::RequestCurrentStats() failed");
 		}
 
 		g_HamExtern.AfterFlip = SteamAfterFlip;
@@ -71,7 +70,7 @@ public:
 		}
 
 		dword gamepad = GetGamepadButtons();
-		if (gamepad & ~oldGamepad & (1 << SDL_CONTROLLER_BUTTON_GUIDE))
+		if (gamepad & ~oldGamepad & (1 << SDL_GAMEPAD_BUTTON_GUIDE))
 		{
 			SteamFriends()->ActivateGameOverlay(nullptr);
 		}
@@ -110,7 +109,7 @@ public:
 	{
 		if (pParam->m_eResult != k_EResultOK)
 		{
-			SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "UserStatsReceived: %d", (int)pParam->m_eResult);
+			LogError("UserStatsReceived: %d", (int)pParam->m_eResult);
 			return;
 		}
 		if (!steam_stats_ready)
@@ -166,7 +165,7 @@ public:
 		{
 			if (SteamUserStats()->SetAchievement(name))
 			{
-				LogDebug("SetAchievement(%s) OK", name);
+				LogInfo("SetAchievement(%s) OK", name);
 				stats_need_store = true;
 				// Store achievements immediately so the message is triggered.
 				stats_store_cooldown = 2;
@@ -178,7 +177,7 @@ public:
 	{
 		if (SteamUserStats()->StoreStats())
 		{
-			LogDebug("StoreStats() OK");
+			LogInfo("StoreStats() OK");
 		}
 		stats_need_store = false;
 		stats_store_cooldown = STATS_STORE_COOLDOWN;
@@ -199,7 +198,7 @@ public:
 		vanilla::VfsStack* vfs_stack = Vfs();
 
 		// Unmount all existing Workshop content and remount it in the loop below.
-		erase_if(vfs_stack->mounts, [](const vanilla::Mount& mount) { return mount.meta.steamWorkshopId != 0; });
+		std::erase_if(vfs_stack->mounts, [](const vanilla::Mount& mount) { return mount.meta.steamWorkshopId != 0; });
 
 		uint32_t subscribedCount = SteamUGC()->GetNumSubscribedItems();
 		subscribedItemIds.resize(subscribedCount);
@@ -220,11 +219,11 @@ public:
 			{
 				if (SteamUGC()->DownloadItem(fileId, false))
 				{
-					SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "workshop download %llu started", fileId);
+					LogInfo("workshop download %llu started", fileId);
 				}
 				else
 				{
-					SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "workshop download %llu failed to start", fileId);
+					LogError("workshop download %llu failed to start", fileId);
 				}
 			}
 			else if ((state & k_EItemStateInstalled) && (state & k_EItemStateSubscribed) && !(state & k_EItemStateDownloadPending))
@@ -232,17 +231,17 @@ public:
 				char dirname[1024];
 				if (SteamUGC()->GetItemInstallInfo(fileId, nullptr, dirname, std::size(dirname), nullptr))
 				{
-					SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "workshop: %s", dirname);
+					LogInfo("workshop: %s", dirname);
 					vfs_stack->push_back(vanilla::open_stdio(dirname), "", { vanilla::VfsSourceKind::Addon, fileId });
 				}
 				else
 				{
-					SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "workshop %llu: GetItemInstallInfo failed", fileId);
+					LogError("workshop %llu: GetItemInstallInfo failed", fileId);
 				}
 			}
 			else
 			{
-				SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "workshop %llu: state is %" PRIu32, fileId, state);
+				LogInfo("workshop %llu: state is %" PRIu32, fileId, state);
 			}
 		}
 
@@ -257,12 +256,12 @@ public:
 			workshopStatus = status.str();
 		}
 
-		SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "workshop end");
+		LogDebug("workshop end");
 	}
 
 	STEAM_CALLBACK(SteamManagerImpl, on_subscriptions_change, UserSubscribedItemsListChanged_t)
 	{
-		SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "subscriptions changed for %u", pParam->m_nAppID);
+		LogDebug("subscriptions changed for %u", pParam->m_nAppID);
 		if (pParam->m_nAppID == SteamUtils()->GetAppID())
 		{
 			MountWorkshopContent();
@@ -273,7 +272,7 @@ public:
 	{
 		if (pParam->m_eResult == k_EResultOK)
 		{
-			SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "workshop download %llu succeeded", pParam->m_nPublishedFileId);
+			LogInfo("workshop download %llu succeeded", pParam->m_nPublishedFileId);
 			if (pParam->m_unAppID == SteamUtils()->GetAppID())
 			{
 				MountWorkshopContent();
@@ -281,7 +280,7 @@ public:
 		}
 		else
 		{
-			SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "workshop download %llu failed: %d", pParam->m_nPublishedFileId, pParam->m_eResult);
+			LogError("workshop download %llu failed: %d", pParam->m_nPublishedFileId, pParam->m_eResult);
 		}
 	}
 
@@ -308,7 +307,7 @@ public:
 	void UploadHighScore(const highScore_t* score, uint8_t subMode) override
 	{
 		char buffer[64];
-		span<char> dest = buffer;
+		std::span<char> dest = buffer;
 		dest = ham_sprintf(dest, "highscore/%d", score->mode);
 		if (subMode != 255)
 		{
@@ -356,11 +355,7 @@ SteamManager* SteamManager::Init(const char* appId)
 	if (appId && !getenv("SteamAppId"))
 	{
 		// setenv is wildly non-threadsafe, so do this before spawning threads
-#ifdef _WIN32
-		_putenv_s("SteamAppId", appId);
-#else
-		setenv("SteamAppId", appId, 0);
-#endif
+		SDL_setenv_unsafe("SteamAppId", appId, 0);
 	}
 
 	if (SteamAPI_Init())

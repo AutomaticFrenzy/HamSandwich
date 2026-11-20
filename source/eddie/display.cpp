@@ -1,4 +1,6 @@
 #include "display.h"
+#include <string.h>
+#include <algorithm>
 #include "jamulfont.h"
 #include "backgd.h"
 #include "tile.h"
@@ -467,6 +469,7 @@ TASK(void) SplashScreen(const char *fname,int delay,byte sound,byte specialdeal)
 		curpal[i].r=0;
 		curpal[i].g=0;
 		curpal[i].b=0;
+		curpal[i].a=255;
 	}
 	dispmgl->SetPalette(curpal);
 	dispmgl->RealizePalette();
@@ -566,92 +569,23 @@ TASK(void) SplashScreen(const char *fname,int delay,byte sound,byte specialdeal)
 //---------------------------------------------------------------------------------------
 // from here on out it's class DISPLAYLIST
 
-DisplayList::DisplayList(void)
+DisplayList::DisplayList()
+	: nextfree(0)
 {
-	ClearList();
-}
-
-DisplayList::~DisplayList(void)
-{
-	// nothin
-}
-
-int DisplayList::GetOpenSlot(void)
-{
-	int i;
-
-	for(i=0;i<MAX_DISPLAY_OBJS;i++)
-	{
-		if(dispObj[i].flags==0)
-			return i;
-	}
-
-	return -1;
-}
-
-void DisplayList::HookIn(int me)
-{
-	int i;
-
-	if(head==-1)
-	{
-		head=me;
-		dispObj[me].prev=-1;
-		dispObj[me].next=-1;
-		return;
-	}
-	else
-	{
-		// shadows go on the head of the list always, drawn before anything else
-		// (and the order of shadows doesn't matter, of course)
-		if(dispObj[me].flags&DISPLAY_SHADOW)
-		{
-			dispObj[me].next=head;
-			dispObj[head].prev=me;
-			dispObj[me].prev=-1;
-			head=me;
-			return;
-		}
-
-		i=head;
-		while(i!=-1)
-		{
-			if((!(dispObj[i].flags&DISPLAY_SHADOW)) &&
-				(dispObj[i].y>dispObj[me].y || (dispObj[i].y==dispObj[me].y && dispObj[i].z>dispObj[me].z)))
-			{
-				dispObj[me].prev=dispObj[i].prev;
-				dispObj[me].next=i;
-				if(dispObj[me].prev!=-1)
-					dispObj[dispObj[me].prev].next=me;
-				dispObj[i].prev=me;
-				if(head==i)
-					head=me;
-				return;
-			}
-			if(dispObj[i].next==-1)
-			{
-				dispObj[i].next=me;
-				dispObj[me].prev=i;
-				dispObj[me].next=-1;
-				return;
-			}
-			i=dispObj[i].next;
-		}
-		return; // this would be bad, but hopefully can't occur
-	}
 }
 
 bool DisplayList::DrawSprite(int x,int y,int z,byte hue,char bright,sprite_t *spr,byte flags)
 {
-	int i;
+	if (nextfree >= MAX_DISPLAY_OBJS)
+	{
+		return false;
+	}
 
 	if(x<-DISPLAY_XBORDER || x>640+DISPLAY_XBORDER ||
 	   y<-DISPLAY_YBORDER || y>480+DISPLAY_YBORDER)
 		return true;
-	i=GetOpenSlot();
-	if(i==-1)
-		return false;
 
+	int i = nextfree++;
 	dispObj[i].hue=hue;
 	dispObj[i].bright=bright;
 	dispObj[i].flags=flags;
@@ -659,31 +593,41 @@ bool DisplayList::DrawSprite(int x,int y,int z,byte hue,char bright,sprite_t *sp
 	dispObj[i].x=x;
 	dispObj[i].y=y;
 	dispObj[i].z=z;
-	HookIn(i);
 	return true;
 }
 
-void DisplayList::ClearList(void)
+void DisplayList::ClearList()
 {
-	int i;
-
-	for(i=0;i<MAX_DISPLAY_OBJS;i++)
-	{
-		dispObj[i].prev=-1;
-		dispObj[i].next=-1;
-		dispObj[i].flags=0;
-	}
-	head=-1;
-	nextfree=0;
+	nextfree = 0;
 }
 
-void DisplayList::Render(void)
+bool operator<(const DisplayObj& lhs, const DisplayObj& rhs)
 {
-	int i;
+	if ((lhs.flags & DISPLAY_SHADOW) != (rhs.flags & DISPLAY_SHADOW))
+	{
+		// shadows go on the head of the list always, drawn before anything else
+		// (and the order of shadows doesn't matter, of course)
+		return (lhs.flags & DISPLAY_SHADOW) > (rhs.flags & DISPLAY_SHADOW);
+	}
+	else if (lhs.y != rhs.y)
+	{
+		return lhs.y < rhs.y;
+	}
+	else if (lhs.z != rhs.z)
+	{
+		return lhs.z < rhs.z;
+	}
+	else
+	{
+		return false;
+	}
+}
 
-	i=head;
+void DisplayList::Render()
+{
+	std::stable_sort(&dispObj[0], &dispObj[nextfree]);
 
-	while(i!=-1)
+	for (int i = 0; i < nextfree; ++i)
 	{
 		if((dispObj[i].flags&DISPLAY_DRAWME) && (dispObj[i].spr))
 		{
@@ -718,6 +662,5 @@ void DisplayList::Render(void)
 				}
 			}
 		}
-		i=dispObj[i].next;
 	}
 }

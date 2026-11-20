@@ -1,4 +1,5 @@
 #include "highscore.h"
+#include <string.h>
 #include "display.h"
 #include "game.h"
 #include "loop.h"
@@ -11,7 +12,7 @@ byte g_RecordPlayer;
 byte g_GotRecordIndex;
 byte g_RecordFlip;
 byte g_GotRecordNameLength;
-byte g_RecordDone;
+bool g_RecordDone;
 
 bool HighScoreUpdate();
 void HighScoreRender();
@@ -19,10 +20,9 @@ bool HighTimeUpdate();
 void HighTimeRender();
 
 void HighScoreInit(void)
-
 {
 	memcpy(g_Background, mgl->GetScreen(), 0x4b000);
-	if (g_IsTimeAttack == false)
+	if (!g_IsTimeAttack)
 	{
 		SetUpdate(HighScoreUpdate);
 		SetRender(HighScoreRender);
@@ -111,7 +111,7 @@ bool HighScoreUpdate(void)
 	}
 	if (g_RecordPlayer == 1)
 	{
-		if (g_RecordDone == true)
+		if (g_RecordDone)
 		{
 			if (g_NumPlayers == 2)
 			{
@@ -149,7 +149,7 @@ bool HighScoreUpdate(void)
 	}
 	if (g_RecordPlayer == 2)
 	{
-		if (g_RecordDone == true)
+		if (g_RecordDone)
 		{
 			HighScoreExit();
 			TitleInit();
@@ -260,7 +260,7 @@ bool HighTimeUpdate(void)
 	}
 	if (g_RecordPlayer == 1)
 	{
-		if (g_RecordDone == true)
+		if (g_RecordDone)
 		{
 			HighScoreExit();
 			TimeAttackInit();

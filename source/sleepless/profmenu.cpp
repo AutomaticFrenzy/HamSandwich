@@ -14,9 +14,6 @@
 #include "comicbook.h"
 #include "customworld.h"
 #include "appdata.h"
-#if __linux__ || __EMSCRIPTEN__
-#include <unistd.h>
-#endif
 
 #define PBTN_HEIGHT	26
 
@@ -210,7 +207,7 @@ byte UpdateProfMenu(int *lastTime,MGLDraw *mgl)
 	char k;
 
 	int KEY_MAX = 0;
-	const byte* key = SDL_GetKeyboardState(&KEY_MAX);
+	const bool* key = SDL_GetKeyboardState(&KEY_MAX);
 
 	mgl->GetMouse(&msx,&msy);
 

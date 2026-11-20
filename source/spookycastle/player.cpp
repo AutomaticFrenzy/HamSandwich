@@ -73,8 +73,8 @@ void PlayerLoadGame(byte which)
 	}
 	else
 	{
-		SDL_RWseek(f,sizeof(player_t)*which,RW_SEEK_SET);
-		SDL_RWread(f,&player,sizeof(player_t),1);
+		SDL_SeekIO(f,sizeof(player_t)*which,SDL_IO_SEEK_SET);
+		SDL_ReadIO(f,&player,sizeof(player_t));
 	}
 }
 
@@ -94,16 +94,17 @@ void PlayerSaveGame(byte which)
 			p[2].totalCompletion[i]=100;
 		}
 		f=AppdataOpen_Write("loony.sav");
-		SDL_RWwrite(f,p,sizeof(player_t),3);
+		SDL_WriteIO(f,p,sizeof(player_t)*3);
 		f.reset();
 		f=AppdataOpen("loony.sav");
 	}
-	SDL_RWread(f,p,sizeof(player_t),3);
+	SDL_ReadIO(f,p,sizeof(player_t)*3);
 	f.reset();
 	memcpy(&p[which],&player,sizeof(player_t));
 	f=AppdataOpen_Write("loony.sav");
-	SDL_RWwrite(f,p,sizeof(player_t),3);
+	SDL_WriteIO(f,p,sizeof(player_t)*3);
 	f.reset();
+	AppdataSync();
 }
 
 void PlayerSetWorldWorth(byte world,int amt)

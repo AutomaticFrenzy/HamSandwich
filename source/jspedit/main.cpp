@@ -1,5 +1,5 @@
-#include <SDL.h>
-#include <SDL_image.h>
+#include <SDL3/SDL.h>
+#include <SDL3_image/SDL_image.h>
 #include <string>
 #include <map>
 #include "globals.h"
@@ -7,11 +7,13 @@
 #include "jamulfont.h"
 #include "fontawesome.h"
 
+#include <SDL3/SDL_main.h>
+
 extern const size_t embed_verdana_size;
 extern const unsigned char embed_verdana[];
 extern const size_t embed_icons_size;
 extern const unsigned char embed_icons[];
-#if !defined(_WIN32) && !defined(__clang__)
+#if !defined(_WIN32)
 extern const size_t embed_game_icon_size;
 extern const unsigned char embed_game_icon[];
 #endif
@@ -27,27 +29,28 @@ int DISPLAY_WIDTH = 1024;
 int DISPLAY_HEIGHT = 768;
 
 int main(int argc, char** argv) {
+#undef main
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS);
-    IMG_Init(IMG_INIT_PNG);
 
-    window = SDL_CreateWindow("JspEdit 3", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, DISPLAY_WIDTH, DISPLAY_HEIGHT, SDL_WINDOW_RESIZABLE);
-    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_PRESENTVSYNC);
+    window = SDL_CreateWindow("JspEdit 3", DISPLAY_WIDTH, DISPLAY_HEIGHT, SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIDDEN);
+    renderer = SDL_CreateRenderer(window, nullptr);
+    SDL_ShowWindow(window);
     SDL_GetWindowSize(window, &DISPLAY_WIDTH, &DISPLAY_HEIGHT);
 
-#if !defined(_WIN32) && !defined(__clang__)
-    SDL_Surface *surface = IMG_Load_RW(SDL_RWFromConstMem(embed_game_icon, embed_game_icon_size), true);
+#if !defined(_WIN32)
+    SDL_Surface *surface = IMG_Load_IO(SDL_IOFromConstMem(embed_game_icon, embed_game_icon_size), true);
     SDL_SetWindowIcon(window, surface);
-    SDL_FreeSurface(surface);
+    SDL_DestroySurface(surface);
 #endif
 
-    SDL_Surface *icons = IMG_Load_RW(SDL_RWFromConstMem(embed_icons, embed_icons_size), true);
+    SDL_Surface *icons = IMG_Load_IO(SDL_IOFromConstMem(embed_icons, embed_icons_size), true);
     gIcons = SDL_CreateTextureFromSurface(renderer, icons);
-    SDL_FreeSurface(icons);
+    SDL_DestroySurface(icons);
 
-    SDL_RWops *rwFont = SDL_RWFromConstMem(embed_verdana, embed_verdana_size);
+    SDL_IOStream *rwFont = SDL_IOFromConstMem(embed_verdana, embed_verdana_size);
     gFont = &gFontBuf;
     FontLoad(rwFont, gFont);
-    SDL_RWclose(rwFont);
+    SDL_CloseIO(rwFont);
 
     if (argc > 1) {
         editor::loadOnStartup(argv[1]);
@@ -100,7 +103,7 @@ void DrawText(SDL_Renderer *renderer, int x, int y, Align align, SDL_Color color
                 for (int i = 0; i < charWidth; ++i)
                 {
                     if (*data++)
-                        SDL_RenderDrawPoint(renderer, x + i, y + j + 3);
+                        SDL_RenderPoint(renderer, x + i, y + j + 3);
                 }
             }
 
@@ -108,11 +111,11 @@ void DrawText(SDL_Renderer *renderer, int x, int y, Align align, SDL_Color color
         }
         else if (ch > 0)
         {
-            SDL_Rect source = { 15 * (ch - 1), 0, 15, 15 };
-            SDL_Rect dest = { x, y + 1, 15, 15 };
+            SDL_FRect source = { (float)(15 * (ch - 1)), 0, 15, 15 };
+            SDL_FRect dest = { (float)x, (float)(y + 1), 15, 15 };
 
             SDL_SetTextureColorMod(gIcons, color.r, color.g, color.b);
-            SDL_RenderCopy(renderer, gIcons, &source, &dest);
+            SDL_RenderTexture(renderer, gIcons, &source, &dest);
             x += 16;
         }
     }

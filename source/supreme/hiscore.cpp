@@ -10,10 +10,6 @@
 #include "steam.h"
 #include "string_extras.h"
 
-#if __linux__ || __EMSCRIPTEN__
-#include <unistd.h>
-#endif
-
 // ---------------- Encrypting scores into strings!
 
 static const char ctab[]=
@@ -257,12 +253,14 @@ void CryptoTest(void)
 	SetupCrypto(3574,858734,298437);
 	auto f = AppdataOpen_Write("test.txt");
 	EncryptScore(&test);
-	SDL_RWprintf(f.get(),"Encrypted:\n%s\n\n",enc_score);
+	SDL_IOprintf(f.get(),"Encrypted:\n%s\n\n",enc_score);
 	DecryptScore(&test);
-	SDL_RWprintf(f.get(),"Decrypted:\n");
-	SDL_RWprintf(f.get(),"name: %s\nchecksum: %u\n\n",test.name,test.scoreChecksum);
-	SDL_RWprintf(f.get(),"memcmp: %d\n",memcmp(&test,&test2,sizeof(score_t)));
+	SDL_IOprintf(f.get(),"Decrypted:\n");
+	SDL_IOprintf(f.get(),"name: %s\nchecksum: %u\n\n",test.name,test.scoreChecksum);
+	SDL_IOprintf(f.get(),"memcmp: %d\n",memcmp(&test,&test2,sizeof(score_t)));
 	ExitCrypto();
+	f.reset();
+	AppdataSync();
 }
 
 // --------------- CHECKSUMMING FUNCTIONS
@@ -514,7 +512,7 @@ void ExitHiScores(void)
 
 void SaveHiScoreFile(score_t *list,word num,const char *fname)
 {
-	owned::SDL_RWops f;
+	owned::SDL_IOStream f;
 	word i;
 
 	if(!config.hiscores)
@@ -525,7 +523,7 @@ void SaveHiScoreFile(score_t *list,word num,const char *fname)
 		f=AppdataOpen_Write(fname);
 		if(!f)
 			return;
-		SDL_RWwrite(f,&num,sizeof(word),1);
+		SDL_WriteIO(f,&num,sizeof(word));
 		f.reset();
 		AppdataSync();
 		return;
@@ -533,13 +531,13 @@ void SaveHiScoreFile(score_t *list,word num,const char *fname)
 	f=AppdataOpen_Write(fname);
 	if(!f)
 		return;
-	SDL_RWwrite(f,&num,sizeof(word),1);	// write out the number of scores
+	SDL_WriteIO(f,&num,sizeof(word));	// write out the number of scores
 
 	SetupCrypto(3574,858734,298437);
 	for(i=0;i<num;i++)			// write out each score, encrypted
 	{
 		EncryptScore(&list[i]);
-		SDL_RWwrite(f,enc_score,sizeof(char),scoreLen);
+		SDL_WriteIO(f,enc_score,scoreLen);
 	}
 	ExitCrypto();
 	f.reset();
@@ -568,7 +566,7 @@ void LoadHiScoresFile(void)
 	if(!f)
 		return;
 
-	SDL_RWread(f,&numScores,sizeof(word),1);	// read in the number of scores
+	SDL_ReadIO(f,&numScores,sizeof(word));	// read in the number of scores
 
 	if(numScores>0)
 	{
@@ -576,7 +574,7 @@ void LoadHiScoresFile(void)
 		SetupCrypto(3574,858734,298437);
 		for(i=0;i<numScores;i++)			// read in each score, encrypted
 		{
-			SDL_RWread(f,enc_score,sizeof(char),scoreLen);
+			SDL_ReadIO(f,enc_score,scoreLen);
 			DecryptScore(&hiScore[i]);		// and decrypt!
 		}
 		ExitCrypto();
@@ -599,7 +597,7 @@ void LoadHiTimesFile(void)
 	if(!f)
 		return;
 
-	SDL_RWread(f,&numTimes,sizeof(word),1);	// read in the number of scores
+	SDL_ReadIO(f,&numTimes,sizeof(word));	// read in the number of scores
 
 	if(numTimes>0)
 	{
@@ -607,7 +605,7 @@ void LoadHiTimesFile(void)
 		SetupCrypto(3574,858734,298437);
 		for(i=0;i<numTimes;i++)			// read in each score, encrypted
 		{
-			SDL_RWread(f,enc_score,sizeof(char),scoreLen);
+			SDL_ReadIO(f,enc_score,scoreLen);
 			DecryptScore(&hiTime[i]);		// and decrypt!
 		}
 		ExitCrypto();

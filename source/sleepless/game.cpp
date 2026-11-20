@@ -17,10 +17,6 @@
 #include <stdlib.h>
 #include "archipelago.h"
 
-#if __linux__ || __EMSCRIPTEN__
-#include <unistd.h>
-#endif
-
 byte showStats=0,spookIt=0;
 dword gameStartTime,visFrameCount,updFrameCount;
 dword tickerTime;
@@ -88,7 +84,7 @@ void LunaticExit(void)
 
 byte InitLevel(byte map)
 {
-	PrintToLog("InitLevel",map);
+	LogVerbose("InitLevel : %d",map);
 
 	JamulSoundPurge();	// each level, that should be good
 
@@ -100,7 +96,7 @@ byte InitLevel(byte map)
 
 	verified=1;
 
-	PrintToLog(curMap->name,0);
+	LogVerbose("%s", curMap->name);
 
 	gameStartTime=timeGetTime();
 	tickerTime=timeGetTime();
@@ -195,7 +191,7 @@ byte InitLevel(byte map)
 
 void ExitLevel(void)
 {
-	PrintToLog("ExitLevel",0);
+	LogVerbose("ExitLevel");
 	// exit everything
 	ExitPauseMenu();
 	ExitGuys();
@@ -257,7 +253,7 @@ TASK(byte) LunaticRun(int *lastTime)
 			CO_RETURN LEVEL_ABORT;
 		}
 
-		SDL_SetRelativeMouseMode(gameMode == GAMEMODE_PLAY ? SDL_TRUE : SDL_FALSE);
+		gamemgl->SetMouseRelative(gameMode == GAMEMODE_PLAY ? true : false);
 		if(gameMode==GAMEMODE_PLAY)
 		{
 			profile.progress.totalTime=player.clock;
@@ -306,7 +302,7 @@ TASK(byte) LunaticRun(int *lastTime)
 				windingDown--;
 				if(!windingDown)
 				{
-					PrintToLog("Wound Down",0);
+					LogVerbose("Wound Down");
 					CO_RETURN windDownReason;
 				}
 			}
@@ -422,14 +418,14 @@ TASK(byte) LunaticRun(int *lastTime)
 			if(profile.progress.totalTime<30*60*240)
 				CompleteGoal(12);
 			RemoveGuy(GetGuyOfType(MONS_RADISH));
-			PrintToLog("Level Win!",0);
+			LogVerbose("Level Win!");
 			goodguy->dx=goodguy->dy=0;
 			if(goodguy->hp==0)
 				goodguy->hp=1;
 			player.journal[63]=1;
 			SaveState();
 			GoalTimeDist();
-			PrintToLog("GoalTimeDist Done",0);
+			LogVerbose("GoalTimeDist Done");
 			mapToGoTo=msgContent;
 			windingDown=40;
 			windDownReason=LEVEL_WIN;
@@ -441,7 +437,7 @@ TASK(byte) LunaticRun(int *lastTime)
 			if (!IsCustomWorld())
 			{
 				auto f = AppdataOpen_Write("profiles/editor.dat");
-				SDL_RWprintf(f.get(), "%s\n", profile.name);
+				SDL_IOprintf(f.get(), "%s\n", profile.name);
 				f.reset();
 				AppdataSync();
 			}
@@ -562,7 +558,7 @@ TASK(void) LunaticDraw(void)
 		PrintGlow(120,101,s,8,1);
 
 		int KEY_MAX = 0;
-		const byte* key = SDL_GetKeyboardState(&KEY_MAX);
+		const bool* key = SDL_GetKeyboardState(&KEY_MAX);
 		char* end = s + sprintf(s,"Keys: ");
 		for (int i = 0; i < KEY_MAX; ++i)
 			if (key[i])

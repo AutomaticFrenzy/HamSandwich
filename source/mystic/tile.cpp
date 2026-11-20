@@ -2,6 +2,7 @@
 #include "water.h"
 #include "options.h"
 #include "recolor.h"
+#include "player.h"
 
 tile_t tiles[NUMTILES];
 MGLDraw *tileMGL;
@@ -37,14 +38,14 @@ void SetTiles(byte *scrn)
 	}
 }
 
-void SaveTiles(SDL_RWops *f)
+void SaveTiles(SDL_IOStream *f)
 {
-	SDL_RWwrite(f,tiles,NUMTILES,sizeof(tile_t));
+	SDL_WriteIO(f,tiles,NUMTILES*sizeof(tile_t));
 }
 
-void LoadTiles(SDL_RWops *f)
+void LoadTiles(SDL_IOStream *f)
 {
-	SDL_RWread(f,tiles,NUMTILES,sizeof(tile_t));
+	SDL_ReadIO(f,tiles,NUMTILES*sizeof(tile_t));
 }
 
 void RenderFloorTile(int x,int y,int t,char light)
@@ -118,7 +119,7 @@ void RenderFloorTile(int x,int y,int t,char light)
 		{
 			dst[i] = SprModifyLight(src[i], light);
 		}
-		dst += 640;
+		dst += SCRWID;
 		src += 32;
 	}
 }
@@ -184,7 +185,7 @@ void RenderFloorTileShadow(int x,int y,int t,char light)
 		{
 			dst[i] = SprModifyLight(src[i], light - 4 * (i > wid - darkpart));
 		}
-		dst += 640;
+		dst += SCRWID;
 		src += 32;
 	}
 }
@@ -239,7 +240,7 @@ void RenderFloorTileUnlit(int x,int y,int t)
 	{
 		hgt--;
 		memcpy(dst, src, wid);
-		dst += 640;
+		dst += SCRWID;
 		src += 32;
 	}
 }
@@ -297,7 +298,7 @@ void RenderFloorTileTrans(int x,int y,int t,char light)
 		{
 			if (src[i]) dst[i] = SprModifyLight(src[i], light);
 		}
-		dst += 640;
+		dst += SCRWID;
 		src += 32;
 	}
 }
@@ -334,7 +335,7 @@ inline void GouraudBoxWater(int x,int y,byte *src,char light0,char light1,char l
 	byte *dst,b;
 	int curLight,dlx,dly1,dly2,firstLight,lastLight;
 
-	dst=tileMGL->GetScreen()+x+y*640;
+	dst=tileMGL->GetScreen()+x+y*SCRWID;
 
 	curLight=light0*FIXAMT;
 
@@ -347,13 +348,13 @@ inline void GouraudBoxWater(int x,int y,byte *src,char light0,char light1,char l
 	{
 		dlx=(lastLight-firstLight)/GB_WID;
 		curLight=firstLight;
-		if(y+j>479)
+		if(y+j>SCRHEI-1)
 			return;	// all done!
 		if(y+j>=0)
 		{
 			for(i=0;i<GB_WID;i++)
 			{
-				if(x+i>=0 && x+i<640)
+				if(x+i>=0 && x+i<SCRWID)
 				{
 					b=*src;
 
@@ -378,7 +379,7 @@ inline void GouraudBoxWater(int x,int y,byte *src,char light0,char light1,char l
 			dst+=GB_WID;
 			src+=GB_WID;
 		}
-		dst+=(640-GB_WID);
+		dst+=(SCRWID-GB_WID);
 		src+=GB_WID;
 
 		firstLight+=dly1;
@@ -392,7 +393,7 @@ inline void GouraudBox(int x,int y,byte *src,char light0,char light1,char light2
 	byte *dst;
 	int curLight,dlx,dly1,dly2,firstLight,lastLight;
 
-	dst=tileMGL->GetScreen()+x+y*640;
+	dst=tileMGL->GetScreen()+x+y*SCRWID;
 
 	curLight=light0*FIXAMT;
 
@@ -405,13 +406,13 @@ inline void GouraudBox(int x,int y,byte *src,char light0,char light1,char light2
 	{
 		dlx=(lastLight-firstLight)/GB_WID;
 		curLight=firstLight;
-		if(y+j>479)
+		if(y+j>SCRHEI-1)
 			return;	// all done!
 		if(y+j>=0)
 		{
 			for(i=0;i<GB_WID;i++)
 			{
-				if(x+i>=0 && x+i<640)
+				if(x+i>=0 && x+i<SCRWID)
 				{
 					tmp=((*src)&31)+(curLight/FIXAMT);
 					if(tmp<0)
@@ -431,7 +432,7 @@ inline void GouraudBox(int x,int y,byte *src,char light0,char light1,char light2
 			dst+=GB_WID;
 			src+=GB_WID;
 		}
-		dst+=(640-GB_WID);
+		dst+=(SCRWID-GB_WID);
 		src+=GB_WID;
 
 		firstLight+=dly1;
@@ -445,7 +446,7 @@ inline void GouraudBoxTrans(int x,int y,byte *src,char light0,char light1,char l
 	byte *dst;
 	int curLight,dlx,dly1,dly2,firstLight,lastLight;
 
-	dst=tileMGL->GetScreen()+x+y*640;
+	dst=tileMGL->GetScreen()+x+y*SCRWID;
 
 	curLight=light0*FIXAMT;
 
@@ -458,13 +459,13 @@ inline void GouraudBoxTrans(int x,int y,byte *src,char light0,char light1,char l
 	{
 		dlx=(lastLight-firstLight)/GB_WID;
 		curLight=firstLight;
-		if(y+j>479)
+		if(y+j>SCRHEI-1)
 			return;	// all done!
 		if(y+j>=0)
 		{
 			for(i=0;i<GB_WID;i++)
 			{
-				if(x+i>=0 && x+i<640)
+				if(x+i>=0 && x+i<SCRWID)
 				{
 					if((*src)!=0)
 					{
@@ -487,7 +488,7 @@ inline void GouraudBoxTrans(int x,int y,byte *src,char light0,char light1,char l
 			dst+=GB_WID;
 			src+=GB_WID;
 		}
-		dst+=(640-GB_WID);
+		dst+=(SCRWID-GB_WID);
 		src+=GB_WID;
 
 		firstLight+=dly1;
@@ -506,13 +507,13 @@ void RenderFloorTileFancyWater(int x,int y,int t,byte water,byte shadow,char *th
 	int i,j;
 	char light[9];
 
-	if(!opt.lightFX)
+	if(!opt.lightFX || VeryClassicMode())
 	{
 		RenderFloorTileFancy(x,y,t,shadow,theLight);
 		return;
 	}
 
-	if(x<=-TILE_WIDTH || y<=-TILE_HEIGHT || x>639 || y>479)
+	if(x<=-TILE_WIDTH || y<=-TILE_HEIGHT || x>SCRWID-1 || y>SCRHEI-1)
 		return;	// no need to render
 
 	memcpy(light,theLight,9*sizeof(char));
@@ -589,12 +590,12 @@ void RenderFloorTileFancy(int x,int y,int t,byte shadow,char *theLight)
 	int i,j;
 	char light[9];
 
-	if(x<=-TILE_WIDTH || y<=-TILE_HEIGHT || x>639 || y>479)
+	if(x<=-TILE_WIDTH || y<=-TILE_HEIGHT || x>SCRWID-1 || y>SCRHEI-1)
 		return;	// no need to render
 
-	if(!opt.lightFX)
+	if(!opt.lightFX || VeryClassicMode())
 	{
-		if(shadow==1)
+		if(shadow == 1 || shadow == 2 || shadow == 6)
 			RenderFloorTileShadow(x,y,t,theLight[4]);
 		else
 			RenderFloorTile(x,y,t,theLight[4]);
@@ -686,10 +687,10 @@ void RenderWallTileFancy(int x,int y,int t,char *theLight)
 	int i,j;
 	char light[9];
 
-	if(x<=-TILE_WIDTH || y<=-TILE_HEIGHT || x>639 || y>479)
+	if(x<=-TILE_WIDTH || y<=-TILE_HEIGHT || x>SCRWID-1 || y>SCRHEI-1)
 		return;	// no need to render
 
-	if(!opt.lightFX)
+	if(!opt.lightFX || VeryClassicMode())
 	{
 		RenderFloorTile(x,y,t,theLight[4]);
 		return;
@@ -715,16 +716,26 @@ void RenderWallTileFancy(int x,int y,int t,char *theLight)
 	light[2]=light[5];
 	light[1]=light[4];
 
-	if(j==9)
+	if(j==9 && t!=260)	// special case for castle wall tiles that I want water in
 	{
 		RenderFloorTileUnlit(x,y,t);
 		return;
 	}
 
-	GouraudBox(x,y,tiles[t],light[0],light[1],light[3],light[4]);
-	GouraudBox(x+GB_WID,y,tiles[t]+GB_WID,light[1],light[2],light[4],light[5]);
-	GouraudBox(x,y+GB_HEI,tiles[t]+GB_HEI*TILE_WIDTH,light[3],light[4],light[6],light[7]);
-	GouraudBox(x+GB_WID,y+GB_HEI,tiles[t]+GB_WID+GB_HEI*TILE_WIDTH,light[4],light[5],light[7],light[8]);
+	if (t == 260)
+	{
+		GouraudBoxWater(x, y, tiles[t], light[0], light[1], light[3], light[4], 0);
+		GouraudBoxWater(x + GB_WID, y, tiles[t] + GB_WID, light[1], light[2], light[4], light[5], 0);
+		GouraudBoxWater(x, y + GB_HEI, tiles[t] + GB_HEI * TILE_WIDTH, light[3], light[4], light[6], light[7], 0);
+		GouraudBoxWater(x + GB_WID, y + GB_HEI, tiles[t] + GB_WID + GB_HEI * TILE_WIDTH, light[4], light[5], light[7], light[8], 0);
+	}
+	else
+	{
+		GouraudBox(x, y, tiles[t], light[0], light[1], light[3], light[4]);
+		GouraudBox(x + GB_WID, y, tiles[t] + GB_WID, light[1], light[2], light[4], light[5]);
+		GouraudBox(x, y + GB_HEI, tiles[t] + GB_HEI * TILE_WIDTH, light[3], light[4], light[6], light[7]);
+		GouraudBox(x + GB_WID, y + GB_HEI, tiles[t] + GB_WID + GB_HEI * TILE_WIDTH, light[4], light[5], light[7], light[8]);
+	}
 }
 
 void RenderRoofTileFancy(int x,int y,int t,byte trans,byte wallBelow,char *theLight)
@@ -738,10 +749,10 @@ void RenderRoofTileFancy(int x,int y,int t,byte trans,byte wallBelow,char *theLi
 	int i,j;
 	char light[9];
 
-	if(x<=-TILE_WIDTH || y<=-TILE_HEIGHT || x>639 || y>479)
+	if(x<=-TILE_WIDTH || y<=-TILE_HEIGHT || x>SCRWID-1 || y>SCRHEI-1)
 		return;	// no need to render
 
-	if(!opt.lightFX)
+	if(!opt.lightFX || VeryClassicMode())
 	{
 		if(trans)
 			RenderFloorTileTrans(x,y,t,theLight[4]);
@@ -773,7 +784,7 @@ void RenderRoofTileFancy(int x,int y,int t,byte trans,byte wallBelow,char *theLi
 		light[7]=light[4];
 	}
 
-	if(j==9)
+	if(j==9 && t!=86)
 	{
 		if(trans)
 			RenderFloorTileTrans(x,y,t,0);
@@ -782,7 +793,14 @@ void RenderRoofTileFancy(int x,int y,int t,byte trans,byte wallBelow,char *theLi
 		return;
 	}
 
-	if(!trans)
+	if (t==86)
+	{
+		GouraudBoxWater(x, y, tiles[t], light[0], light[1], light[3], light[4],0);
+		GouraudBoxWater(x + GB_WID, y, tiles[t] + GB_WID, light[1], light[2], light[4], light[5],0);
+		GouraudBoxWater(x, y + GB_HEI, tiles[t] + GB_HEI * TILE_WIDTH, light[3], light[4], light[6], light[7],0);
+		GouraudBoxWater(x + GB_WID, y + GB_HEI, tiles[t] + GB_WID + GB_HEI * TILE_WIDTH, light[4], light[5], light[7], light[8],0);
+	}
+	else if(!trans)
 	{
 		GouraudBox(x,y,tiles[t],light[0],light[1],light[3],light[4]);
 		GouraudBox(x+GB_WID,y,tiles[t]+GB_WID,light[1],light[2],light[4],light[5]);

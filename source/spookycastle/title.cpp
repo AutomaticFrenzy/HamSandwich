@@ -509,11 +509,11 @@ void InitGameSlotPicker(MGLDraw *mgl,title_t *title)
 	}
 	else
 	{
-		SDL_RWread(f,&p,sizeof(player_t),1);
+		SDL_ReadIO(f,&p,sizeof(player_t));
 		title->percent[0]=CalcTotalPercent(&p)*100;
-		SDL_RWread(f,&p,sizeof(player_t),1);
+		SDL_ReadIO(f,&p,sizeof(player_t));
 		title->percent[1]=CalcTotalPercent(&p)*100;
-		SDL_RWread(f,&p,sizeof(player_t),1);
+		SDL_ReadIO(f,&p,sizeof(player_t));
 		title->percent[2]=CalcTotalPercent(&p)*100;
 		f.reset();
 	}
@@ -832,6 +832,7 @@ TASK(void) SplashScreen(MGLDraw *dispmgl,const char *fname,int delay,byte sound,
 		curpal[i].r=0;
 		curpal[i].g=0;
 		curpal[i].b=0;
+		curpal[i].a=255;
 	}
 	dispmgl->SetPalette(curpal);
 	dispmgl->RealizePalette();

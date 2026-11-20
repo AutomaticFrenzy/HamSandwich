@@ -36,10 +36,10 @@ namespace
 	dword fairy = 0;
 
 	const std::map<int64_t, byte> appearance_map = {
-		{BASE_ID + 0 * 50 + 5, ITM_KEYCH1},
-		{BASE_ID + 1 * 50 + 4, ITM_KEYCH2},
-		{BASE_ID + 2 * 50 + 7, ITM_KEYCH3},
-		{BASE_ID + 3 * 50 + 8, ITM_KEYCH4},
+		{BASE_ID + 0 * 50 + 5, ITM_SWORD1},
+		{BASE_ID + 1 * 50 + 4, ITM_SWORD2},
+		{BASE_ID + 2 * 50 + 7, ITM_SWORD3},
+		{BASE_ID + 3 * 50 + 8, ITM_SWORD4},
 		{BASE_ID + 0 * 50 + 11, ITM_SPELLBOOK},
 		{BASE_ID + 0 * 50 + 2, ITM_SPELLBOOK},
 		{BASE_ID + 0 * 50 + 3, ITM_SPELLBOOK},
@@ -340,23 +340,23 @@ void Archipelago::Update()
 		int64_t item_id = item->item - BASE_ID;
 
 		// Armageddon Sword pieces
-		if (item_id == 0*50+5 && !player.keychain[0])
+		if (item_id == 0*50+5 && !player.swordPiece[0])
 		{
-			player.keychain[0] = 1;
+			player.swordPiece[0] = 1;
 		}
-		else if (item_id == 1*50+4 && !player.keychain[1])
+		else if (item_id == 1*50+4 && !player.swordPiece[1])
 		{
-			player.keychain[1] = 1;
+			player.swordPiece[1] = 1;
 		}
-		else if (item_id == 2*50+7 && !player.keychain[2])
+		else if (item_id == 2*50+7 && !player.swordPiece[2])
 		{
-			player.keychain[2] = 1;
+			player.swordPiece[2] = 1;
 		}
-		else if (item_id == 3*50+8 && !player.keychain[3])
+		else if (item_id == 3*50+8 && !player.swordPiece[3])
 		{
-			player.keychain[3] = 1;
+			player.swordPiece[3] = 1;
 		}
-		if (player.keychain[0] && player.keychain[1] && player.keychain[2] && player.keychain[3] && !player.spell[9])
+		if (player.swordPiece[0] && player.swordPiece[1] && player.swordPiece[2] && player.swordPiece[3] && !player.spell[9])
 		{
 			// Unlike vanilla, does not max out staff
 			player.spell[9] = 1;
@@ -364,7 +364,7 @@ void Archipelago::Update()
 		}
 
 		// Spellbooks
-		byte spellbook = SpellBookForThisLevel(item_id);
+		byte spellbook = SpellBookForThisLevel(item_id % 50, item_id / 50);
 		if (spellbook != 255)
 		{
 			if(player.spell[spellbook]==1)
@@ -381,7 +381,7 @@ void Archipelago::Update()
 		}
 
 		// Fairies
-		byte fairy = FairyForThisLevel(item_id);
+		byte fairy = FairyForThisLevel(item_id % 50, item_id / 50);
 		if (fairy != 0)
 		{
 			// TODO: set chaseFairy instead?
@@ -539,7 +539,7 @@ void Archipelago::Update()
 					}
 
 					// Spellbooks
-					byte spellbook = SpellBookForThisLevel(item_id);
+					byte spellbook = SpellBookForThisLevel(item_id % 50, item_id / 50);
 					if (spellbook != 255)
 					{
 						if(player.spell[spellbook]==2)
@@ -587,14 +587,14 @@ void Archipelago::Update()
 		{
 			if (change->new_value->isLong())
 			{
-				player.prevScore = player.score = change->new_value->getLong();
+				player.prevExp = player.experience = change->new_value->getLong();
 			}
 		}
 		else if (ap->is_storage_private(change->key, "money"))
 		{
 			if (change->new_value->isLong())
 			{
-				player.prevMoney = player.money = std::min(change->new_value->getLong(), (long long)UINT16_MAX);
+				GainMoney(TotalMoney() - change->new_value->getLong());
 			}
 		}
 		else if (ap->is_storage_private(change->key, "spell"))
@@ -614,16 +614,17 @@ void Archipelago::Update()
 	}
 
 	// Re-use prevScore and prevMoney since we're not resetting them on death.
-	if (player.score != player.prevScore)
+	if (player.experience != player.prevExp)
 	{
-		player.prevScore = player.score;
+		player.prevExp = player.experience;
 		ap->storage_set(ap->storage_private("xp"), player.score, false);
 	}
 
-	if (player.money != player.prevMoney)
+	if (player.money != player.prevMoney || player.bigMoney != player.prevBigMoney)
 	{
 		player.prevMoney = player.money;
-		ap->storage_set(ap->storage_private("money"), player.money, false);
+		player.prevBigMoney = player.bigMoney;
+		ap->storage_set(ap->storage_private("money"), TotalMoney(), false);
 	}
 
 	if (player.curSpell != spell)

@@ -9,7 +9,7 @@ based on HamSandwich.
 
 ## All games (2019–present)
 
-* Migrate graphics and audio to SDL2
+* Migrate graphics and audio to SDL3
     * Fix graphical glitches by implementing 8-bit to 32-bit conversion in software
     * Control settings are not compatible with official releases due to this change
     * Variously replaces SciTech MGL, Allegro, DirectSound, and FMOD
@@ -50,7 +50,9 @@ based on HamSandwich.
 
 ### HamSandwich (since last release)
 
-Nothing!
+* Fix crash when changing too many tiles or items with the "change touching" mode.
+* Fix some bugs with worlds using more than 800 tiles.
+* Fix crash when opening a file dialog with no results.
 
 ### v9.6 (2025-08-02) - [Steam](https://store.steampowered.com/news/app/2547330/view/525350155171399000)
 
@@ -281,7 +283,129 @@ Editor features:
 
 ## Kid Mystic
 
-### HamSandwich (2019–present)
+### [Steam edition](https://store.steampowered.com/app/3531250/Kid_Mystic_Enchanted_Edition/) special features
+
+* 24 Steam Achievements to collect!
+* [Challenge mode leaderboards][kmscore] for score, time, and combo for each difficulty.
+
+[kmscore]: https://steamcommunity.com/stats/3531250/leaderboards/16369368
+
+### HamSandwich (since last release)
+
+Nothing!
+
+### v4.4 (2026-06-07)
+
+* Fix spellbooks being invisible in the HUD due to a bug introduced in Kid Mystic 4.3.
+* 1999 Mode
+  * Fix Mama Spider's no-coin-drop status instead applying to Spitters.
+  * Reduce money cheat amount from its modern $50,000 to the 1999-accurate $500.
+  * Disable even more interface indicators when out of mana.
+
+### v4.3 (2026-05-30)
+
+* Fix Options menu navigation controls being too sensitive on some configurations.
+* Fix crash on Liquify going off the map.
+* 1999 Mode
+  * Fix inaccurate XP requirement scaling.
+  * Fix inaccurate shop prices for Steel Hat, Mystical Staff, and Air Lancelots.
+  * Fix Vault spellbook trick not working.
+  * Swap Hyper Inferno and Seeker Swarm spellbooks back to their 1999 positions.
+  * Potions can now be picked up even when your health/mana is full.
+  * Disable interface indicators when out of mana and when a spellbook is tier 2.
+  * Fix Mama Spider and Mush The Shroom to not drop cash due to being considered bosses.
+  * Allow healing spells to be cast at full health.
+* Classic Mode
+  * Whackazoid: Remove skill shard from Whackazoid.
+* Modern Mode
+  * Fix max life being set wrong when buying Heart Pendant and Soul Pendant.
+  * Fix incorrect behavior of Lyfus Uppus rank 3, Magikus Uppus rank 3, and Zerko Killus below rank 3.
+* Challenge Mode
+  * Fix Classic Challenge showing icons for Modern-only collectibles.
+
+### v4.2 (2025-05-25)
+
+* A new final boss fight song! Turn off Classic Music to enjoy it.
+* Modern Mode
+  * Enemy freeze time limit increased to 15 seconds (was 10 seconds).
+  * Ice shards from the Icus Coldus rune no longer thaw enemies.
+  * Skills that trigger on a frozen enemy also trigger if it was only unfrozen in the past half-second.
+  * Fixed Frostbite to damage every second as intended (was every two seconds).
+  * Armageddon now burns trees.
+  * Armageddon and other explosions now do a better job of triggering on-hit switches.
+  * Fixed timing/typos on some commentary nodes.
+  * Chapter 1
+    * Beginnerton: A visual hint has been added to the Fairy Bell puzzle.
+  * Chapter 3
+    * Off The Deep End: Added more feedback and fixed confusing resets on the skill shard puzzle.
+    * The Guest Chambers: Added more feedback and fixed confusing resets on the skill shard puzzle.
+  * Chapter 4
+    * Puzzling Caverns: The rune puzzle now gives a hint when you fail.
+    * Horkboxes: Added more feedback and fixed confusing resets on the skill shard puzzle.
+  * Madcap
+    * Fix enemies being thawed 5x faster than intended by damage.
+* Challenge Mode
+  * Fix bugs in Modern Challenge Mode after collecting 256 stars.
+
+### v4.1 (2025-05-11)
+
+* Camera direction shifts are more gentle now, perhaps helping with motion sickness? Let us know!
+* On startup, Steam will properly credit you for any missing achievements.
+* "Take a Break" achievement no longer fails if you use a pointy hat.
+* Pteros are now capped at 25 total, but trying to summon more now heals them all to full health.
+* Logs no longer accept non-human riders.
+* Fixed a crash that occurred if you died while riding a log, and the log then crashed into things before you finished dying.
+* Fixed possible crashes if Octon Juice goes off the map.
+* Fixed CPU usage spiking in the credits screen.
+* Modern Mode
+  * The Skill Reset button is now always shown in the menu, with a message explaining you can only use it in the overworld.
+  * Energy Barrage: Energetic Casting now makes the damage ramp up by 2% per 'shot', up to 300%, until you stop firing.
+  * Otto Siko: No longer fires off seekers when you fail to cast Armageddon, during Armageddon, with the Mana Gettin' skill.
+  * Fixed falling in water with exactly 10 life left breaking the game.
+  * Chapter 1
+    * Beginnerton: The villager who explains how to cast spells now has a modern explanation of it, instead of repeating his classic speech.
+    * Beginnerton: You can no longer shoot the shootable target from inside the house.
+    * Beginnerton: The shootable wall no longer looks the same as the pushable wall.
+  * Chapter 2
+    * Mush-Aid: The button that you step on, and enemies can't, now looks different from the ones for enemies.
+    * Spiders' Lair: the ghost spitter can no longer be killed, and cannot reach the skill shard.
+    * The Hidden Temple: The entry puzzle is now 1/3 solved for you, very modern!
+    * Haunted Woods: all spells cost 1 now when they are blocked by ghosts, so you don't have to watch which spell you are using.
+  * Chapter 3
+    * The Gatehouse: fixed a single bad tile that was impassable for no reason.
+    * The Guest Chambers: You can now exit The Skeletal Path multiple times.
+    * The Vault: Enemies can no longer trigger switches, which made it difficult to complete.
+    * Twisty Passages, All Alike: It is no longer possible for the spikey sign to go weird and cause a hole to appear in a wall.
+    * Hot To Go: Shooting Peeping Bombs no longer resets your position.
+    * Hot To Go: The trigger area for feeding a villager is now bigger, so you can't skip past it using Berserk.
+    * Hot To Go: Prevented collectibles from spawning in unreachable areas.
+  * Chapter 4
+    * Horkboxes (and possibly elsewhere): Changed how you are repositioned after triggering a speech dialog, fixing an infinite conversation.
+* Classic Mode
+  * Mush-Aid: Added the 'soft lock protection' similar to Modern Mode.
+  * Surprise guest monsters have returned to Classic Mode.
+* 1999 Mode
+  * You can no longer burn down trees, since you couldn't do that in 1999.
+  * The Vault: Giving Up after getting the spell no longer prevents you from re-entering.
+* Challenge Mode
+  * Earning Challenge mode is now possible by getting 100% in any mode, not just Modern mode.
+  * Swamp Stew: You no longer earn the star for good cooking if you fail for technical reasons.
+
+### v4.0: Enchanted Edition (2025-05-05)
+
+* Modern Mode!
+  * Choose how Kid Mystic's power grows in a new skill tree.
+  * Collect new Runestones for additional upgrades.
+  * Visit a new Beginnerton as well as a very special new level in each chapter.
+  * Customize your experience with new Weird Options.
+  * And other minor visual and convenience improvements.
+* Brutal Mode! For when the base game becomes too familiar.
+* 1999 Mode! Play the game as it was before the turn of the millennium, with all its frustrations.
+* 24 Achievements, and a path to unlocking special Cheatstones.
+* A remixed and remastered soundtrack! Or a classic soundtrack option for the purists.
+* Improved controller support.
+
+### HamSandwich (2019–2025)
 
 * Stop the intro music early if skipped
 * Stop the main menu music when entering the editor

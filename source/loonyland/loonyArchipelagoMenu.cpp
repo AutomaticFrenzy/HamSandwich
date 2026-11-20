@@ -65,7 +65,7 @@ UpdateArchipelagoMenu(int* lastTime, MGLDraw* mgl)
 				CO_RETURN 1;
 			}
 
-			if (c == SDLK_j)
+			if (c == SDLK_J)
 			{
 				ArchipelagoMode = true;
 				ap_modesAvail[0] = 1;

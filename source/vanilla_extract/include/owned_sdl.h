@@ -2,81 +2,91 @@
 #define OWNED_SDL_H
 
 #include <memory>
-#include <SDL.h>
-#include "rw_functions.h"
-#include "owned_stdio.h"
+#include <SDL3/SDL.h>
 
 // ----------------------------------------------------------------------------
-// SDL_RWops
+// SDL_malloc / SDL_free
 
 namespace owned
 {
 	namespace _deleter
 	{
-		struct SDL_RWops
+		struct SdlMem
 		{
-			void operator()(::SDL_RWops* ptr)
+			void operator()(void* ptr) { return ::SDL_free(ptr); }
+		};
+	}
+
+	template<class T>
+	using SdlMem = std::unique_ptr<T, _deleter::SdlMem>;
+}
+
+// ----------------------------------------------------------------------------
+// SDL_IOStream
+
+namespace owned
+{
+	namespace _deleter
+	{
+		struct SDL_IOStream
+		{
+			void operator()(::SDL_IOStream* ptr)
 			{
-				if (ptr && SDL_RWclose(ptr) != 0)
+				if (ptr && !SDL_CloseIO(ptr))
 				{
-					SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SDL_RWclose: %s", SDL_GetError());
+					SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SDL_CloseIO: %s", SDL_GetError());
 				}
 			}
 		};
 	}
 
-	typedef std::unique_ptr<::SDL_RWops, _deleter::SDL_RWops> SDL_RWops;
+	typedef std::unique_ptr<::SDL_IOStream, _deleter::SDL_IOStream> SDL_IOStream;
 
-	inline SDL_RWops SDL_RWFromFP(::FILE* fp)
+	inline SDL_IOStream SDL_IOFromConstMem(const void *mem, size_t size)
 	{
-		return SDL_RWops { ::SDL_RWFromFP(fp, SDL_FALSE) };
+		return SDL_IOStream { ::SDL_IOFromConstMem(mem, size) };
 	}
 
-	inline SDL_RWops SDL_RWFromFP(owned::FILE fp)
+	inline SDL_IOStream SDL_IOFromFile(const char *file, const char *mode)
 	{
-		return SDL_RWops { ::SDL_RWFromFP(fp.release(), SDL_TRUE) };
-	}
-
-	inline SDL_RWops SDL_RWFromConstMem(const void *mem, int size)
-	{
-		return SDL_RWops { ::SDL_RWFromConstMem(mem, size) };
-	}
-
-	inline SDL_RWops SDL_RWFromFile(const char *file, const char *mode)
-	{
-		return SDL_RWops { ::SDL_RWFromFile(file, mode) };
+		return SDL_IOStream { ::SDL_IOFromFile(file, mode) };
 	}
 }
 
-inline Sint64 SDL_RWsize(const owned::SDL_RWops& context)
+inline Sint64 SDL_GetIOSize(const owned::SDL_IOStream& context)
 {
-	return context->size(context.get());
+	return SDL_GetIOSize(context.get());
 }
 
-inline Sint64 SDL_RWseek(const owned::SDL_RWops& context, Sint64 offset, int whence)
+inline Sint64 SDL_SeekIO(const owned::SDL_IOStream& context, Sint64 offset, SDL_IOWhence whence)
 {
-	return context->seek(context.get(), offset, whence);
+	return SDL_SeekIO(context.get(), offset, whence);
 }
 
-inline Sint64 SDL_RWtell(const owned::SDL_RWops& context)
+inline Sint64 SDL_TellIO(const owned::SDL_IOStream& context)
 {
-	return context->seek(context.get(), 0, RW_SEEK_CUR);
+	return SDL_TellIO(context.get());
 }
 
-inline size_t SDL_RWread(const owned::SDL_RWops& context, void *ptr, size_t size, size_t maxnum)
+inline size_t SDL_ReadIO(const owned::SDL_IOStream& context, void *ptr, size_t size)
 {
-	return context->read(context.get(), ptr, size, maxnum);
+	return SDL_ReadIO(context.get(), ptr, size);
 }
 
-inline size_t SDL_RWwrite(const owned::SDL_RWops& context, const void *ptr, size_t size, size_t num)
+inline size_t SDL_WriteIO(const owned::SDL_IOStream& context, const void *ptr, size_t size)
 {
-	return context->write(context.get(), ptr, size, num);
+	return SDL_WriteIO(context.get(), ptr, size);
+}
+
+inline bool SDL_FlushIO(const owned::SDL_IOStream& context)
+{
+	return SDL_FlushIO(context.get());
 }
 
 [[nodiscard]] // If you don't care about the return value, use .reset() instead.
-inline int SDL_RWclose(owned::SDL_RWops context)
+inline bool SDL_CloseIO(owned::SDL_IOStream context)
 {
-	return SDL_RWclose(context.release());
+	return SDL_CloseIO(context.release());
 }
 
 // ----------------------------------------------------------------------------
@@ -88,20 +98,41 @@ namespace owned
 	{
 		struct SDL_Surface
 		{
-			void operator()(::SDL_Surface* ptr) { return SDL_FreeSurface(ptr); }
+			void operator()(::SDL_Surface* ptr) { return SDL_DestroySurface(ptr); }
 		};
 	}
 
 	typedef std::unique_ptr<::SDL_Surface, _deleter::SDL_Surface> SDL_Surface;
 
-	inline SDL_Surface SDL_LoadBMP_RW(::SDL_RWops* rw)
+	inline SDL_Surface SDL_LoadBMP_IO(::SDL_IOStream* src)
 	{
-		return SDL_Surface { SDL_LoadBMP_RW(rw, SDL_FALSE) };
+		return SDL_Surface { SDL_LoadBMP_IO(src, false) };
 	}
 
-	inline SDL_Surface SDL_LoadBMP_RW(owned::SDL_RWops rw)
+	inline SDL_Surface SDL_LoadBMP_IO(owned::SDL_IOStream src)
 	{
-		return SDL_Surface { SDL_LoadBMP_RW(rw.release(), SDL_TRUE) };
+		return SDL_Surface { SDL_LoadBMP_IO(src.release(), true) };
+	}
+}
+
+// ----------------------------------------------------------------------------
+// SDL_Palette
+
+namespace owned
+{
+	namespace _deleter
+	{
+		struct SDL_Palette
+		{
+			void operator()(::SDL_Palette* ptr) { return SDL_DestroyPalette(ptr); }
+		};
+	}
+
+	typedef std::unique_ptr<::SDL_Palette, _deleter::SDL_Palette> SDL_Palette;
+
+	inline SDL_Palette SDL_CreatePalette(int ncolors)
+	{
+		return SDL_Palette { ::SDL_CreatePalette(ncolors) };
 	}
 }
 
@@ -162,7 +193,13 @@ namespace owned
 	{
 		struct SDL_GLContext
 		{
-			void operator()(::SDL_GLContext ptr) { return SDL_GL_DeleteContext(ptr); }
+			void operator()(::SDL_GLContext ptr)
+			{
+				if (ptr && !SDL_GL_DestroyContext(ptr))
+				{
+					SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SDL_GL_DestroyContext: %s", SDL_GetError());
+				}
+			}
 		};
 	}
 
@@ -178,38 +215,38 @@ namespace owned
 	{
 		struct SDL_Joystick
 		{
-			void operator()(::SDL_Joystick* ptr) { return SDL_JoystickClose(ptr); }
+			void operator()(::SDL_Joystick* ptr) { return SDL_CloseJoystick(ptr); }
 		};
 	}
 
 	typedef std::unique_ptr<::SDL_Joystick, _deleter::SDL_Joystick> SDL_Joystick;
 
-	inline SDL_Joystick SDL_JoystickOpen(int device_index)
+	inline SDL_Joystick SDL_OpenJoystick(SDL_JoystickID instance_id)
 	{
-		return SDL_Joystick { ::SDL_JoystickOpen(device_index) };
+		return SDL_Joystick { ::SDL_OpenJoystick(instance_id) };
 	}
 
-	// NB: SDL_JoystickFromInstanceID does not return an owned ptr
+	// NB: SDL_GetJoystickFromID does not return an owned ptr
 }
 
 // ----------------------------------------------------------------------------
-// SDL_GameController
+// SDL_Gamepad
 
 namespace owned
 {
 	namespace _deleter
 	{
-		struct SDL_GameController
+		struct SDL_Gamepad
 		{
-			void operator()(::SDL_GameController* ptr) { return SDL_GameControllerClose(ptr); }
+			void operator()(::SDL_Gamepad* ptr) { return SDL_CloseGamepad(ptr); }
 		};
 	}
 
-	typedef std::unique_ptr<::SDL_GameController, _deleter::SDL_GameController> SDL_GameController;
+	typedef std::unique_ptr<::SDL_Gamepad, _deleter::SDL_Gamepad> SDL_Gamepad;
 
-	inline SDL_GameController SDL_GameControllerOpen(int device_index)
+	inline SDL_Gamepad SDL_OpenGamepad(SDL_JoystickID instance_id)
 	{
-		return SDL_GameController { ::SDL_GameControllerOpen(device_index) };
+		return SDL_Gamepad { ::SDL_OpenGamepad(instance_id) };
 	}
 }
 

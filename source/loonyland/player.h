@@ -231,7 +231,7 @@ byte WeaponCost(byte wpn,byte level);
 void PlayerFireUltraWeapon(Guy *me);
 void PlayerCalcStats();
 
-void DescribeSave(span<char> dst, const player_t* player);
+void DescribeSave(std::span<char> dst, const player_t* player);
 
 std::string GetPlayerSeed();
 

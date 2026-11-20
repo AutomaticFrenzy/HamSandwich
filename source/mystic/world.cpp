@@ -27,7 +27,7 @@ byte NewWorld(world_t *world,MGLDraw *mgl)
 	return 1;
 }
 
-byte LoadWorld(world_t *world,char *fname)
+byte LoadWorld(world_t *world,const char *fname)
 {
 	int i;
 
@@ -35,11 +35,11 @@ byte LoadWorld(world_t *world,char *fname)
 	if(!f)
 		return 0;
 
-	SDL_RWread(f,&world->numMaps,1,1);
+	SDL_ReadIO(f,&world->numMaps,1);
 
 	LoadTiles(f.get());
 
-	SDL_RWread(f,world->terrain,200,sizeof(terrain_t));
+	SDL_ReadIO(f,world->terrain,200*sizeof(terrain_t));
 
 	for(i=0;i<MAX_MAPS;i++)
 		world->map[i]=NULL;
@@ -54,7 +54,7 @@ byte LoadWorld(world_t *world,char *fname)
 	return 1;
 }
 
-byte SaveWorld(world_t *world,char *fname)
+byte SaveWorld(world_t *world,const char *fname)
 {
 	int i;
 
@@ -62,11 +62,11 @@ byte SaveWorld(world_t *world,char *fname)
 	if(!f)
 		return 0;
 
-	SDL_RWwrite(f,&world->numMaps,1,1);
+	SDL_WriteIO(f,&world->numMaps,1);
 
 	SaveTiles(f.get());
 
-	SDL_RWwrite(f,world->terrain,200,sizeof(terrain_t));
+	SDL_WriteIO(f,world->terrain,200*sizeof(terrain_t));
 
 	for(i=0;i<world->numMaps;i++)
 		world->map[i]->Save(f.get());
@@ -81,8 +81,11 @@ void FreeWorld(world_t *world)
 	int i;
 
 	for(i=0;i<MAX_MAPS;i++)
-		if(world->map[i])
+		if (world->map[i])
+		{
 			delete world->map[i];
+			world->map[i] = nullptr;
+		}
 }
 
 void InitWorld(world_t *world,byte worldNum)
@@ -93,10 +96,11 @@ void InitWorld(world_t *world,byte worldNum)
 	complete=0;
 
 	for(i=1;i<MAX_MAPS;i++)
-		if(world->map[i])
-			complete+=100;		// each level is worth 100 points except the hub which is worth nothing
-
-	PlayerSetWorldWorth(worldNum,complete);
+		if (world->map[i])
+		{
+			complete += 100;		// each level is worth 100 points except the hub which is worth nothing
+			world->map[i]->ScanForContent();
+		}
 }
 
 void GetWorldName(const char *fname,char *buf)
@@ -113,7 +117,7 @@ void GetWorldName(const char *fname,char *buf)
 	//   the 200 terrain types, the width&height of map 0, and bam there it is at the name
 	//   of map 0.
 
-	SDL_RWseek(f,1+400*32*24+200*sizeof(terrain_t)+2*sizeof(int),RW_SEEK_SET);
+	SDL_SeekIO(f,1+400*32*24+200*sizeof(terrain_t)+2*sizeof(int),SDL_IO_SEEK_SET);
 	// read the name
-	SDL_RWread(f,buf,1,32);
+	SDL_ReadIO(f,buf,32);
 }

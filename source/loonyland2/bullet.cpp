@@ -376,7 +376,7 @@ bulletDef_t bulDef[BLT_TYPES]={
 	 0,0,0,				// delay,type,rate
 	},
 	// 22 - BLT_DRAIN
-	{BF_HITEVIL|BF_GLOW|BF_PLAYERONLY|BF_LIGHT,	// flags
+	{BF_HITGOOD|BF_GLOW|BF_PLAYERONLY|BF_LIGHT,	// flags
 	 0,0,20,FIXAMT*1,FIXAMT*5,FIXAMT/2,0,60,10,	// gravity,damage,hit size,hitForce,speed,dspeed,beginDZ,timer,homing
 	 128,243,243,1,			// anim speed, first frame, last frame, # of facings
 	 // run out of time effect
@@ -1935,8 +1935,8 @@ void HitBadguys(bullet_t *me,Map *map,world_t *world)
 			if(GetGuy(i-1)->type!=player.monsType)
 			{
 				GetGuy(i-1)->hp+=me->damage;
-				if(GetGuy(i-1)->hp>MonsterHP(GetGuy(i-1)->type,GetGuy(i-1)->team))
-					GetGuy(i-1)->hp=MonsterHP(GetGuy(i-1)->type,GetGuy(i-1)->team);
+				if(GetGuy(i-1)->hp>MonsterHP(GetGuy(i-1)->type,GetGuy(i-1)->RealTeam()))
+					GetGuy(i-1)->hp=MonsterHP(GetGuy(i-1)->type,GetGuy(i-1)->RealTeam());
 				if(GetGuy(i-1)->type==MONS_YOURBOT)
 				{
 					player.var[VAR_CLOCKLIFE]=GetGuy(i-1)->hp&0xFF;
@@ -2433,6 +2433,8 @@ void FireMe(bullet_t *me,int x,int y,int z,int owner,byte facing,byte type,word 
 	me->anim=0;
 	me->frame=bulDef[me->type].firstFrm;
 	me->team=GetGuy(owner)->team;
+	if (type == BLT_DRAINMASTER || type == BLT_DRAIN || type == BLT_GALE2)  //fix so restoration doesn't cure enemies
+		me->team = (GOOD + EVIL) - me->team;
 	me->nohit=0;
 	me->bSpawnTimer=bulDef[me->type].spawnDelay;
 	me->pSpawnTimer=bulDef[me->type].partDelay;
@@ -2510,7 +2512,7 @@ void DestroyBullets(int x,int y,byte team,int radius)
 	}
 }
 
-void SaveBullets(SDL_RWops *f)
+void SaveBullets(SDL_IOStream *f)
 {
 	int i;
 	word b;
@@ -2522,16 +2524,16 @@ void SaveBullets(SDL_RWops *f)
 			b++;
 	}
 
-	SDL_RWwrite(f,&b,sizeof(word),1);
+	SDL_WriteIO(f,&b,sizeof(word));
 	for(i=0;i<MAX_BULLETS;i++)
 	{
 		static_assert(sizeof(bullet_t) == 57);
 		if(bullet[i].type)
-			SDL_RWwrite(f,&bullet[i],sizeof(bullet_t),1);
+			SDL_WriteIO(f,&bullet[i],sizeof(bullet_t));
 	}
 }
 
-void LoadBullets(SDL_RWops *f)
+void LoadBullets(SDL_IOStream *f)
 {
 	int i;
 	word b;
@@ -2543,11 +2545,11 @@ void LoadBullets(SDL_RWops *f)
 			bullet[i].type=BLT_NONE;
 	}
 
-	SDL_RWread(f,&b,sizeof(word),1);
+	SDL_ReadIO(f,&b,sizeof(word));
 	for(i=0;i<b;i++)
 	{
 		static_assert(sizeof(bullet_t) == 57);
-		SDL_RWread(f,&bullet[i],sizeof(bullet_t),1);
+		SDL_ReadIO(f,&bullet[i],sizeof(bullet_t));
 	}
 }
 

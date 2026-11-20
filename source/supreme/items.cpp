@@ -1773,7 +1773,7 @@ void CalculateItemRenderExtents()
 				rect.w = spr->width;
 				rect.h = spr->height;
 
-				SDL_UnionRect(&everything, &rect, &everything);
+				SDL_GetRectUnion(&everything, &rect, &everything);
 
 				if(item.flags&IF_SHADOW)
 				{
@@ -1783,7 +1783,7 @@ void CalculateItemRenderExtents()
 					rect.w = spr->height/2 + spr->width;
 					rect.h = spr->height/2;
 
-					SDL_UnionRect(&everything, &rect, &everything);
+					SDL_GetRectUnion(&everything, &rect, &everything);
 				}
 			}
 		}
@@ -1797,11 +1797,9 @@ void CalculateItemRenderExtents()
 	extents.up = floor_div(everything.y + everything.h + TILE_HEIGHT/2, TILE_HEIGHT).quot;
 	extents.down = -floor_div(everything.y + TILE_HEIGHT/2, TILE_HEIGHT).quot;
 
-#ifndef NDEBUG
 	LogDebug("item bounds: (x: %d, y: %d, w: %d, h: %d) tile spread: (x: %+d to %+d, y: %+d to %+d), inclusive",
 		everything.x, everything.y, everything.w, everything.h,
 		-extents.left, extents.right, -extents.up, extents.down);
-#endif
 }
 
 ItemRenderExtents GetItemRenderExtents()

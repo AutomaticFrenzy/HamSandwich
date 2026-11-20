@@ -49,19 +49,19 @@ void FontFree(mfont_t *font)
 
 FontError FontLoad(const char *fname, mfont_t *font)
 {
-	owned::SDL_RWops f = AppdataOpen(fname);
+	owned::SDL_IOStream f = AppdataOpen(fname);
 	if (!f)
 		return FONT_FILENOTFOUND;
 	return FontLoad(f.get(), font);
 }
 
-FontError FontLoad(SDL_RWops* f, mfont_t* font)
+FontError FontLoad(SDL_IOStream* f, mfont_t* font)
 {
-	if (SDL_RWread(f, font, MFONT_SIZE_READ, 1) != 1)
+	if (SDL_ReadIO(f, font, MFONT_SIZE_READ) != MFONT_SIZE_READ)
 	{
 		return FONT_INVALIDFILE;
 	}
-	if (SDL_RWseek(f, MFONT_SIZE_TOTAL - MFONT_SIZE_READ, RW_SEEK_CUR) < 0)
+	if (SDL_SeekIO(f, MFONT_SIZE_TOTAL - MFONT_SIZE_READ, SDL_IO_SEEK_CUR) < 0)
 	{
 		return FONT_INVALIDFILE;
 	}
@@ -72,8 +72,9 @@ FontError FontLoad(SDL_RWops* f, mfont_t* font)
 		return FONT_CANTALLOC;
 	}
 
-	if (SDL_RWread(f, font->data, font->dataSize, 1) != 1)
+	if (SDL_ReadIO(f, font->data, font->dataSize) != font->dataSize)
 	{
+		free(font->data);
 		return FONT_INVALIDFILE;
 	}
 
@@ -90,13 +91,13 @@ FontError FontSave(const char *fname, const mfont_t *font)
 	if (!f)
 		return FONT_FILENOTFOUND;
 
-	if (SDL_RWwrite(f, font, MFONT_SIZE_READ, 1) != 1)
+	if (SDL_WriteIO(f, font, MFONT_SIZE_READ) != MFONT_SIZE_READ)
 		return FONT_INVALIDFILE;
 
-	if (SDL_RWseek(f, MFONT_SIZE_TOTAL, RW_SEEK_SET) != 0)
+	if (SDL_SeekIO(f, MFONT_SIZE_TOTAL, SDL_IO_SEEK_SET) != 0)
 		return FONT_INVALIDFILE;
 
-	if (SDL_RWwrite(f, font->data, font->dataSize, 1) != 1)
+	if (SDL_WriteIO(f, font->data, font->dataSize) != font->dataSize)
 		return FONT_INVALIDFILE;
 
 	f.reset();
@@ -275,7 +276,7 @@ static void FontPrintCharColor(int x, int y, dword c, byte color, char bright, c
 	}
 }
 
-static void FontPrintCharBright(int x, int y, dword c, char bright, const mfont_t *font)
+void FontPrintCharBright(int x, int y, dword c, char bright, const mfont_t *font)
 {
 	byte *dst, *src;
 	int scrWidth, scrHeight, chrWidth;
@@ -311,7 +312,60 @@ static void FontPrintCharBright(int x, int y, dword c, char bright, const mfont_
 	}
 }
 
-static void FontPrintCharSolid(int x, int y, byte c, const mfont_t *font, byte color)
+void FontPrintCharItalicsBright(int x, int y, dword c, char bright, const mfont_t* font)
+{
+	byte* dst, * src;
+	int scrWidth, scrHeight, chrWidth;
+	int i, j;
+
+	scrWidth = fontmgl->GetWidth();
+	scrHeight = fontmgl->GetHeight();
+	dst = fontmgl->GetScreen() + x + y * scrWidth;
+
+	if (c < font->firstChar || c >= (font->firstChar + font->numChars))
+		return; // unprintable
+
+	c -= font->firstChar;
+
+	chrWidth = *(font->chars[c]);
+	src = font->chars[c] + 1;
+	bool tilt = false;
+	x += font->height / 2;
+	dst += font->height / 2;
+	for (j = 0; j < font->height; j++)
+	{
+		for (i = 0; i < (*font->chars[c]); i++)
+		{
+			if (*src && (x >= 0) && (x < scrWidth) && (y >= 0) && (y < scrHeight))
+			{
+				byte b = (*dst + bright);
+				if ((b & (~31)) != ((*dst) & (~31)))
+				{
+					if (bright > 0)
+						b = 31;
+					else
+						b = 0;
+				}
+				*dst = b;
+			}
+			dst++;
+			src++;
+			x++;
+		}
+		y++;
+		x -= chrWidth;
+		dst += (scrWidth - chrWidth);
+		if (tilt)
+		{
+			x--;
+			dst--;
+		}
+		tilt = !tilt;
+
+	}
+}
+
+void FontPrintCharSolid(int x, int y, byte c, const mfont_t *font, byte color)
 {
 	byte *dst, *src;
 	int scrWidth, scrHeight, chrWidth;
@@ -618,6 +672,15 @@ void FontPrintStringDarkAdj(int x,int y, std::string_view s,int dark,const mfont
 		FontPrintCharGlow(x+1,y+1,s[i],0,font);
 		FontPrintCharDark2(x,y,s[i],d,font);
 		x+=CharWidth(s[i],font)+font->gapSize;
+	}
+}
+
+void FontPrintStringItalicsBright(int x, int y, std::string_view s, const mfont_t *font, char bright)
+{
+	for (char ch : s)
+	{
+		FontPrintCharItalicsBright(x, y, ch, bright, font);
+		x += CharWidth(ch, font) + font->gapSize;
 	}
 }
 

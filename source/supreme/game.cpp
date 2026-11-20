@@ -99,7 +99,7 @@ bool VerifyLevel(Map *map)
 		return false;
 
 	dword index = 0;
-	while(SDL_RWread(f,&cmp,sizeof(dword),1))
+	while(SDL_ReadIO(f,&cmp,sizeof(dword)))
 	{
 		++index;
 		if(cmp==chk)
@@ -113,7 +113,7 @@ bool VerifyLevel(Map *map)
 
 byte InitLevel(byte map)
 {
-	PrintToLog("InitLevel",map);
+	LogVerbose("InitLevel : %d", map);
 
 	JamulSoundPurge();	// each level, that should be good
 
@@ -125,7 +125,7 @@ byte InitLevel(byte map)
 
 	verified=VerifyLevel(curMap);
 
-	PrintToLog(curMap->name,0);
+	LogVerbose("%s", curMap->name);
 
 	gameStartTime=timeGetTime();
 	tickerTime=timeGetTime();
@@ -177,7 +177,7 @@ byte InitLevel(byte map)
 
 void ExitLevel(void)
 {
-	PrintToLog("ExitLevel",0);
+	LogVerbose("ExitLevel");
 
 	// exit everything
 	ExitPauseMenu();
@@ -199,6 +199,7 @@ void ExitLevel(void)
 
 void RestoreGameplayGfx(void)
 {
+	gamemgl->ResizeBuffer(SCRWID, SCRHEI);
 	if(profile.progress.purchase[modeShopNum[MODE_TEENY]]&SIF_ACTIVE)
 	{
 		gamemgl->ClearScreen();
@@ -311,7 +312,7 @@ TASK(byte) LunaticRun(int *lastTime)
 				windingDown--;
 				if(!windingDown)
 				{
-					PrintToLog("Wound Down",0);
+					LogVerbose("Wound Down");
 					CO_RETURN windDownReason;
 				}
 			}
@@ -430,9 +431,9 @@ TASK(byte) LunaticRun(int *lastTime)
 		}
 		else if(msgFromOtherModules==MSG_WINLEVEL)
 		{
-			PrintToLog("Level Win!",0);
+			LogVerbose("Level Win!");
 			GoalTimeDist();
-			PrintToLog("GoalTimeDist Done",0);
+			LogVerbose("GoalTimeDist Done");
 			mapToGoTo=msgContent;
 			windingDown=40;
 			windDownReason=LEVEL_WIN;
@@ -549,7 +550,7 @@ TASK(void) LunaticDraw(void)
 			PrintGlow(5,150,s,8,2);
 
 			int KEY_MAX = 0;
-			const byte* key = SDL_GetKeyboardState(&KEY_MAX);
+			const bool* key = SDL_GetKeyboardState(&KEY_MAX);
 			char* end = s + sprintf(s,"Keys: ");
 			for (int i = 0; i < KEY_MAX; ++i)
 				if (key[i])
@@ -685,10 +686,10 @@ TASK(byte) PlayALevel(byte map)
 
 		if(gameMode==GAMEMODE_PLAY && wasPaused)
 		{
-			if(!(GetGamepadButtons()&(1<<SDL_CONTROLLER_BUTTON_START)))
+			if(!(GetGamepadButtons()&(1<<SDL_GAMEPAD_BUTTON_START)))
 				wasPaused=0;
 		}
-		if((lastKey==27 || (GetGamepadButtons()&(1<<SDL_CONTROLLER_BUTTON_START)) || GetGameIdle()) && !wasPaused && gameMode==GAMEMODE_PLAY)
+		if((lastKey==27 || (GetGamepadButtons()&(1<<SDL_GAMEPAD_BUTTON_START)) || GetGameIdle()) && !wasPaused && gameMode==GAMEMODE_PLAY)
 		{
 			wasPaused=1;
 			PauseGame();
@@ -705,7 +706,7 @@ TASK(byte) PlayALevel(byte map)
 	if(exitcode==LEVEL_WIN)
 	{
 		PlayerWinLevel(0);
-		PrintToLog("Tally",0);
+		LogVerbose("Tally");
 		AWAIT Tally(gamemgl,lastLevelName,0);
 	}
 	ExitLevel();
@@ -827,7 +828,9 @@ TASK(void) TestLevel(world_t *world,byte level)
 		else if(result==WORLD_QUITGAME || result==WORLD_ABORT)
 			break;
 	}
-	curWorld = {};
+	// `curWorld = {};` is more C++ey here, but stack overflows on unoptimized Emscripten builds.
+	// sizeof(world_t) ~= 776560 >> 65536 due to large embedded Tilegfx.
+	memset(&curWorld, 0, sizeof(world_t));
 	InitGuys(256);
 	GetSpecialsFromMap(EditorGetMap()->special);
 	editing=1;

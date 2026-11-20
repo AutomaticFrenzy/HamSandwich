@@ -4,19 +4,14 @@
 #include <algorithm>
 #include "clock.h"
 #include "jamulsound.h"
-#include "hammusic.h"
 #include "log.h"
 #include "softjoystick.h"
 #include "appdata.h"
 #include "extern.h"
 #include "ico.h"
-#include "openurl.h"
 #include "string_extras.h"
 
-#include <SDL_image.h>
-#ifdef _WIN32
-	#include <SDL_syswm.h>
-#endif  // _WIN32
+#include <SDL3_image/SDL_image.h>
 
 #ifdef __EMSCRIPTEN__
 	#include <emscripten.h>
@@ -60,6 +55,7 @@ MGLDraw::MGLDraw(const char *name, int xRes, int yRes, bool windowed)
 	, lastKeyPressed(0)
 	, lastRawCode(0)
 	, buffer(nullptr)
+	, prevTexture(nullptr)
 {
 	_globalMGLDraw = this;
 
@@ -73,8 +69,8 @@ MGLDraw::MGLDraw(const char *name, int xRes, int yRes, bool windowed)
 	this->windowed = windowed = true;
 #endif  // __EMSCRIPTEN__
 
-	if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER)) {
-		LogError("SDL_Init(VIDEO|JOYSTICK): %s", SDL_GetError());
+	if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK | SDL_INIT_GAMEPAD)) {
+		LogError("SDL_Init: %s", SDL_GetError());
 		FatalError("Failed to initialize SDL");
 		return;
 	}
@@ -82,36 +78,34 @@ MGLDraw::MGLDraw(const char *name, int xRes, int yRes, bool windowed)
 #ifdef __ANDROID__
 	// On Android, tabbing out of the application may generate an SDL_Quit,
 	// which is received once the application is re-entered.
-	SDL_FlushEvents(SDL_FIRSTEVENT, SDL_LASTEVENT);
+	SDL_FlushEvents(SDL_EVENT_FIRST, SDL_EVENT_LAST);
 #endif
 
 	JamulSoundInit(512);
 
-	Uint32 flags = windowed ? 0 : SDL_WINDOW_FULLSCREEN_DESKTOP;
+	Uint32 flags = windowed ? 0 : SDL_WINDOW_FULLSCREEN;
 	flags |= SDL_WINDOW_HIDDEN;  // Hide the window on creation, and show it a little later, to avoid flicker if SDL_CreateRenderer recreates the window.
-	window = SDL_CreateWindow(name, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, xRes, yRes, flags);
+	window = SDL_CreateWindow(name, xRes, yRes, flags);
 	if (!window) {
 		LogError("SDL_CreateWindow: %s", SDL_GetError());
 		FatalError("Failed to create window");
 		return;
 	}
 	SDL_SetWindowMinimumSize(window, xRes, yRes);
-	LogDebug("window format: %s", SDL_GetPixelFormatName(SDL_GetWindowPixelFormat(window)));
+	LogInfo("window format: %s", SDL_GetPixelFormatName(SDL_GetWindowPixelFormat(window)));
 	SDL_GetWindowSize(window, &winWidth, &winHeight);
 
-	renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_PRESENTVSYNC);
+	renderer = SDL_CreateRenderer(window, nullptr);
 	if (!renderer) {
 		LogError("SDL_CreateRenderer: %s", SDL_GetError());
-		LogDebug("Trying software renderer...");
-		renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_SOFTWARE);
-		if (!renderer) {
-			LogError("SDL_CreateRenderer: %s", SDL_GetError());
-			FatalError("Failed to create renderer");
-			return;
-		}
+		FatalError("Failed to create renderer");
+		return;
+	}
+	if (!SDL_SetRenderVSync(renderer, 1)) {
+		LogError("SDL_SetRenderVSync: %s", SDL_GetError());
 	}
 
-#if !defined(_WIN32) && !defined(__clang__)
+#if !defined(_WIN32)
 	// Icon embedding for non-Windows platforms.
 	// `tools/build/rescomp.py` produces a .cpp file containing these symbols.
 	// Marked `__attribute__((weak))` for platforms or projects which do not
@@ -119,48 +113,36 @@ MGLDraw::MGLDraw(const char *name, int xRes, int yRes, bool windowed)
 	extern __attribute__((weak)) const size_t embed_game_icon_size;
 	extern __attribute__((weak)) const unsigned char embed_game_icon[];
 	if (&embed_game_icon && &embed_game_icon_size) {
-		owned::SDL_Surface surface = ReadIcoFile(owned::SDL_RWFromConstMem(embed_game_icon, embed_game_icon_size), -1);
+		owned::SDL_Surface surface = ReadIcoFile(owned::SDL_IOFromConstMem(embed_game_icon, embed_game_icon_size), -1);
 		SDL_SetWindowIcon(window, surface.get());
 	}
 #endif
 
-#ifndef NDEBUG
-	SDL_RendererInfo info;
-	SDL_GetRendererInfo(renderer, &info);
-	LogDebug("renderer: %s", info.name);
-
-	char flagbuf[64];
-	span<char> dst = ham_strcpy(flagbuf, "  flags:");
-	if (info.flags & SDL_RENDERER_SOFTWARE)
-		dst = ham_strcpy(dst, " software");
-	if (info.flags & SDL_RENDERER_ACCELERATED)
-		dst = ham_strcpy(dst, " accelerated");
-	if (info.flags & SDL_RENDERER_PRESENTVSYNC)
-		dst = ham_strcpy(dst, " vsync");
-	if (info.flags & SDL_RENDERER_TARGETTEXTURE)
-		dst = ham_strcpy(dst, " ttex");
-	if (!info.flags)
-		dst = ham_strcpy(dst, " 0");
-	LogDebug("%s", flagbuf);
-	LogDebug("  texture: (%d, %d)", info.max_texture_width, info.max_texture_height);
-	LogDebug("  formats (%d):", info.num_texture_formats);
-	for (Uint32 i = 0; i < info.num_texture_formats; ++i) {
-		LogDebug("    %s", SDL_GetPixelFormatName(info.texture_formats[i]));
+	LogInfo("renderer: %s", SDL_GetRendererName(renderer));
+	if (IsLogPriority(SDL_LOG_PRIORITY_DEBUG))
+	{
+		SDL_PropertiesID props = SDL_GetRendererProperties(renderer);
+		LogDebug("  texture: %" SDL_PRIs64, SDL_GetNumberProperty(props, SDL_PROP_RENDERER_MAX_TEXTURE_SIZE_NUMBER, 0));
+		const SDL_PixelFormat* formats = (const SDL_PixelFormat*)SDL_GetPointerProperty(props, SDL_PROP_RENDERER_TEXTURE_FORMATS_POINTER, nullptr);
+		LogDebug("  formats:");
+		while (formats && *formats != SDL_PIXELFORMAT_UNKNOWN) {
+			LogDebug("    %s", SDL_GetPixelFormatName(*formats));
+			++formats;
+		}
 	}
-#endif
 
-	SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, pixelMode ? "0" : "1");
 	texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STATIC, xRes, yRes);
 	if (!texture) {
 		LogError("SDL_CreateTexture: %s", SDL_GetError());
 		FatalError("Failed to create texture");
 		return;
 	}
+	SDL_SetTextureScaleMode(texture, pixelMode ? SDL_SCALEMODE_PIXELART : SDL_SCALEMODE_LINEAR);
 
 	SDL_SetWindowTitle(window, name);
-	SDL_ShowCursor(SDL_DISABLE);
+	SDL_HideCursor();
 	SDL_ShowWindow(window);
-	SDL_SetWindowResizable(window, SDL_TRUE);  // Set after showing so i3 treats it as non-resizable to start.
+	SDL_SetWindowResizable(window, true);  // Set after showing so i3 treats it as non-resizable to start.
 
 	scrn = std::make_unique<byte[]>(xRes * yRes);
 	buffer = std::make_unique<RGB[]>(xRes * yRes);
@@ -214,7 +196,7 @@ void MGLDraw::SetMouse(int x,int y)
 	if (idle)
 		return;
 
-	if (SDL_GetRelativeMouseMode())
+	if (SDL_GetWindowRelativeMouseMode(window))
 	{
 		mouse_x = x;
 		mouse_y = y;
@@ -233,16 +215,28 @@ void MGLDraw::SetMouse(int x,int y)
 	SDL_PumpEvents();
 	if (!idle)
 	{
-		SDL_GetMouseState(&x, &y);
-		mouse_x = (x - destX) / scale;
-		mouse_y = (y - destY) / scale;
+		float fx, fy;
+		SDL_GetMouseState(&fx, &fy);
+		mouse_x = (fx - destX) / scale;
+		mouse_y = (fy - destY) / scale;
 	}
+}
+
+void MGLDraw::SetMouseRelative(bool relative)
+{
+	SDL_SetWindowRelativeMouseMode(window, relative);
 }
 
 bool MGLDraw::Process(void)
 {
 	UpdateMusic();
-	return (!readyToQuit);
+
+	// Peep the queue to get quit events immediately without having to drain it.
+	SDL_PumpEvents();
+	if (SDL_PeepEvents(nullptr, 1, SDL_PEEKEVENT, SDL_EVENT_QUIT, SDL_EVENT_QUIT))
+		readyToQuit = true;
+
+	return !readyToQuit;
 }
 
 void MGLDraw::Quit()
@@ -267,8 +261,8 @@ void MGLDraw::SetWindowed(bool newWindowed)
 		int px, py;
 		SDL_GetWindowPosition(window, &px, &py);
 
-		SDL_SetWindowFullscreen(window, 0);
-		SDL_SetWindowResizable(window, SDL_TRUE);  // Set now in case we started fullscreen.
+		SDL_SetWindowFullscreen(window, false);
+		SDL_SetWindowResizable(window, true);  // Set now in case we started fullscreen.
 
 		px -= (xRes - winWidth) / 2;
 		py -= (yRes - winHeight) / 2;
@@ -280,7 +274,7 @@ void MGLDraw::SetWindowed(bool newWindowed)
 	}
 	else
 	{
-		SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN_DESKTOP);
+		SDL_SetWindowFullscreen(window, true);
 	}
 #else  // __EMSCRIPTEN__
 	if (!windowed)
@@ -338,17 +332,17 @@ void MGLDraw::ResizeBuffer(int w, int h, bool clamp)
 	if (clamp)
 	{
 		// Clamp the requested width/height to be no more than the display size.
-		SDL_DisplayMode mode = {};
-		SDL_GetWindowDisplayMode(window, &mode);
-		if (mode.w > 640 && mode.w < w)
-			w = mode.w;
-		if (mode.h > 480 && mode.h < h)
-			h = mode.h;
+		const SDL_DisplayMode *mode = SDL_GetWindowFullscreenMode(window);
+		if (mode && mode->w > 640 && mode->w < w)
+			w = mode->w;
+		if (mode && mode->h > 480 && mode->h < h)
+			h = mode->h;
 	}
 
 	// Resize the 8-bit buffer, truecolor buffer, and GPU texture.
-	SDL_DestroyTexture(texture);
-
+	// Save the texture and delete it at the start of the next frame to avoid
+	// having to flush the GPU command queue here just to delete it.
+	prevTexture = texture;
 	xRes = pitch = w;
 	yRes = h;
 
@@ -373,30 +367,33 @@ void MGLDraw::ResizeBuffer(int w, int h, bool clamp)
 		SDL_SetWindowPosition(window, px, py);
 	}
 	SDL_SetWindowMinimumSize(window, xRes, yRes);
+#ifdef __EMSCRIPTEN__
+	SDL_SetWindowSize(window, xRes, yRes);
+#endif
 
 	// Update mouse_x and mouse_y.
 	float scale = std::max(1.0f, std::min((float)winWidth / xRes, (float)winHeight / yRes));
 	int destX = (int)((winWidth - xRes * scale) / 2);
 	int destY = (int)((winHeight - yRes * scale) / 2);
-	int mx, my;
+	float mx, my;
 	SDL_GetMouseState(&mx, &my);
 	mouse_x = (mx - destX) / scale;
 	mouse_y = (my - destY) / scale;
 }
 
-static void TranslateKey(SDL_Keysym* sym)
+static void TranslateKey(SDL_KeyboardEvent* sym)
 {
 	if (sym->scancode == SDL_SCANCODE_AC_BACK)
 	{
 		sym->scancode = SDL_SCANCODE_ESCAPE;
-		sym->sym = SDLK_ESCAPE;
+		sym->key = SDLK_ESCAPE;
 		return;
 	}
 #ifdef __EMSCRIPTEN__
 	if (sym->scancode == SDL_SCANCODE_GRAVE)
 	{
 		sym->scancode = SDL_SCANCODE_ESCAPE;
-		sym->sym = SDLK_ESCAPE;
+		sym->key = SDLK_ESCAPE;
 		return;
 	}
 #endif  // __EMSCRIPTEN__
@@ -405,16 +402,16 @@ static void TranslateKey(SDL_Keysym* sym)
 TASK(void) MGLDraw::FinishFlip(void)
 {
 	float scale = std::max(1.0f, std::min((float)winWidth / xRes, (float)winHeight / yRes));
-	SDL_Rect dest = {
-		(int)((winWidth - xRes * scale) / 2),
-		(int)((winHeight - yRes * scale) / 2),
-		(int)(xRes * scale),
-		(int)(yRes * scale),
+	SDL_FRect dest = {
+		(float)(int)((winWidth - xRes * scale) / 2),
+		(float)(int)((winHeight - yRes * scale) / 2),
+		(float)(int)(xRes * scale),
+		(float)(int)(yRes * scale),
 	};
 
 	SDL_UpdateTexture(texture, NULL, buffer.get(), pitch * sizeof(RGB));
 	SDL_RenderClear(renderer);
-	SDL_RenderCopy(renderer, texture, NULL, &dest);
+	SDL_RenderTexture(renderer, texture, NULL, &dest);
 	bool enableTouchMouse = true;
 	if (softJoystick)
 	{
@@ -430,50 +427,37 @@ TASK(void) MGLDraw::FinishFlip(void)
 	SDL_Event e;
 	while(SDL_PollEvent(&e))
 	{
-		if (e.type == SDL_KEYDOWN || e.type == SDL_KEYUP)
+		if (e.type == SDL_EVENT_KEY_DOWN || e.type == SDL_EVENT_KEY_UP)
 		{
-			TranslateKey(&e.key.keysym);
+			TranslateKey(&e.key);
 		}
 
 		ControlHandleEvent(e);
 
-		if (e.type == SDL_KEYDOWN)
+		if (e.type == SDL_EVENT_KEY_DOWN)
 		{
-			lastRawCode = e.key.keysym.scancode;
-			if (!(e.key.keysym.sym & ~0xff))
+			lastRawCode = e.key.scancode;
+			if (!(e.key.key & ~0xff))
 			{
-				lastKeyPressed = e.key.keysym.sym;
+				lastKeyPressed = SDL_GetKeyFromScancode(e.key.scancode, e.key.mod, false);
 			}
 
-			if (e.key.keysym.scancode == SDL_SCANCODE_F11)
+			if (e.key.scancode == SDL_SCANCODE_F11)
 			{
 #ifndef __EMSCRIPTEN__
 				if (windowed)
 				{
-					// increase scale by 1
-					int scale = std::min(winWidth / xRes, winHeight / yRes) + 1;
-					int newWidth = xRes * scale, newHeight = yRes * scale;
-					// compare to desktop size
-					SDL_DisplayMode mode;
-					int index = SDL_GetWindowDisplayIndex(window);
-					if (index < 0)
+					// decrease scale by 1
+					int scale = std::min((winWidth - 1) / xRes, (winHeight - 1) / yRes);
+					if (scale < 1)
 					{
-						LogError("SDL_GetWindowDisplayIndex: %s", SDL_GetError());
-						SetWindowed(false);
-					}
-					else if (SDL_GetDesktopDisplayMode(index, &mode) < 0)
-					{
-						LogError("SDL_GetDesktopDisplayMode: %s", SDL_GetError());
-						SetWindowed(false);
-					}
-					else if (newWidth >= mode.w || newHeight >= mode.h)
-					{
-						// too big, go to fullscreen
+						// Already at minimum size, just go fullscreen
 						SetWindowed(false);
 					}
 					else
 					{
-						// bump up window size
+						// bump down window size
+						int newWidth = xRes * scale, newHeight = yRes * scale;
 						int px, py;
 						SDL_GetWindowPosition(window, &px, &py);
 						px -= (newWidth - winWidth) / 2;
@@ -487,8 +471,38 @@ TASK(void) MGLDraw::FinishFlip(void)
 				}
 				else
 				{
-					// just go to exact window size
-					SetWindowed(true);
+					// go to biggest window size that will fit on desktop
+					const SDL_DisplayMode *mode;
+					int index = SDL_GetDisplayForWindow(window);
+					if (index < 0)
+					{
+						LogError("SDL_GetDisplayForWindow: %s", SDL_GetError());
+						SetWindowed(true);
+					}
+					else if (mode = SDL_GetDesktopDisplayMode(index); !mode)
+					{
+						LogError("SDL_GetDesktopDisplayMode: %s", SDL_GetError());
+						SetWindowed(true);
+					}
+					else
+					{
+						int scale = std::min((mode->w - 1) / xRes, (mode->h - 1) / yRes);
+						int newWidth = xRes * scale, newHeight = yRes * scale;
+						int px, py;
+						SDL_GetWindowPosition(window, &px, &py);
+
+						SDL_SetWindowFullscreen(window, 0);
+						SDL_SetWindowResizable(window, true);  // Set now in case we started fullscreen.
+						windowed = true;
+
+						px -= (newWidth - winWidth) / 2;
+						py -= (newHeight - winHeight) / 2;
+						px = std::max(0, px);
+						py = std::max(0, py);
+						SDL_SetWindowPosition(window, px, py);
+
+						SDL_SetWindowSize(window, newWidth, newHeight);
+					}
 				}
 #else  // __EMSCRIPTEN__
 				EM_ASM(
@@ -496,17 +510,12 @@ TASK(void) MGLDraw::FinishFlip(void)
 				);
 #endif  // __EMSCRIPTEN__
 			}
-			else if (e.key.keysym.scancode == SDL_SCANCODE_F10)
+			else if (e.key.scancode == SDL_SCANCODE_F10)
 			{
 				pixelMode = !pixelMode;
-				SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, pixelMode ? "0" : "1");
-				SDL_Texture* newTexture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STATIC, xRes, yRes);
-				if (newTexture)
-				{
-					texture = newTexture;
-				}
+				SDL_SetTextureScaleMode(texture, pixelMode ? SDL_SCALEMODE_PIXELART : SDL_SCALEMODE_LINEAR);
 			}
-			else if (e.key.keysym.scancode == SDL_SCANCODE_F12)
+			else if (e.key.scancode == SDL_SCANCODE_F12)
 			{
 				time_t timeobj;
 				time(&timeobj);
@@ -517,7 +526,7 @@ TASK(void) MGLDraw::FinishFlip(void)
 				SaveBMP(fname);
 			}
 		}
-		else if (e.type == SDL_TEXTINPUT)
+		else if (e.type == SDL_EVENT_TEXT_INPUT)
 		{
 			if (strlen(e.text.text) == 1)
 			{
@@ -530,11 +539,11 @@ TASK(void) MGLDraw::FinishFlip(void)
 				lastKeyPressed = e.text.text[0];
 			}
 		}
-		else if (e.type == SDL_MOUSEMOTION)
+		else if (e.type == SDL_EVENT_MOUSE_MOTION)
 		{
 			if (enableTouchMouse || e.motion.which != SDL_TOUCH_MOUSEID)
 			{
-				if (SDL_GetRelativeMouseMode())
+				if (SDL_GetWindowRelativeMouseMode(window))
 				{
 					mouse_x += e.motion.xrel;
 					mouse_y += e.motion.yrel;
@@ -546,7 +555,7 @@ TASK(void) MGLDraw::FinishFlip(void)
 				}
 			}
 		}
-		else if (e.type == SDL_MOUSEBUTTONUP)
+		else if (e.type == SDL_EVENT_MOUSE_BUTTON_UP)
 		{
 			// Always accept mouseups.
 			int flag = 0;
@@ -556,12 +565,12 @@ TASK(void) MGLDraw::FinishFlip(void)
 				flag = 2;
 			mouse_b &= ~flag;
 		}
-		else if (e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP)
+		else if (e.type == SDL_EVENT_MOUSE_BUTTON_DOWN || e.type == SDL_EVENT_MOUSE_BUTTON_UP)
 		{
 			// Only accept mousedowns that are inside the real scene.
 			// Also ignore mousedowns if soft joystick is active.
-			SDL_Point p = {e.button.x, e.button.y};
-			if (SDL_PointInRect(&p, &dest) && (e.motion.which != SDL_TOUCH_MOUSEID || enableTouchMouse))
+			SDL_FPoint p = {e.button.x, e.button.y};
+			if (SDL_PointInRectFloat(&p, &dest) && (e.motion.which != SDL_TOUCH_MOUSEID || enableTouchMouse))
 			{
 				int flag = 0;
 				if (e.button.button == SDL_BUTTON_LEFT)
@@ -571,50 +580,53 @@ TASK(void) MGLDraw::FinishFlip(void)
 				mouse_b |= flag;
 			}
 		}
-		else if (e.type == SDL_MOUSEWHEEL)
+		else if (e.type == SDL_EVENT_MOUSE_WHEEL)
 		{
 			mouse_z += e.wheel.y;
 		}
-		else if (e.type == SDL_QUIT)
+		else if (e.type == SDL_EVENT_QUIT)
 		{
 			readyToQuit = 1;
 		}
-		else if (e.type == SDL_CONTROLLERDEVICEREMOVED)
+		else if (e.type == SDL_EVENT_GAMEPAD_REMOVED)
 		{
 			idle = true;
 			idleGame = true;
 		}
-		else if (e.type == SDL_WINDOWEVENT)
+		else if (e.type == SDL_EVENT_WINDOW_FOCUS_LOST)
 		{
-			if (e.window.event == SDL_WINDOWEVENT_FOCUS_LOST)
-			{
-				idle = true;
-				idleGame = true;
-			}
-			else if (e.window.event == SDL_WINDOWEVENT_FOCUS_GAINED)
-			{
-				idleGame = false;
-				idle = false;
-			}
-			else if (e.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
-			{
-				winWidth = e.window.data1;
-				winHeight = e.window.data2;
-			}
-			else if (e.window.event == SDL_WINDOWEVENT_EXPOSED)
-			{
-				// On some platforms (Linux i3) we don't get SIZE_CHANGED when
-				// we go fullscreen, but we do get an EXPOSED, and this works.
-				SDL_GetWindowSize(window, &winWidth, &winHeight);
-				SDL_Rect rect = { 0, 0, winWidth, winHeight };
-				SDL_RenderSetViewport(renderer, &rect);
-			}
+			idle = true;
+			idleGame = true;
+		}
+		else if (e.type == SDL_EVENT_WINDOW_FOCUS_GAINED)
+		{
+			idleGame = false;
+			idle = false;
+		}
+		else if (e.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED)
+		{
+			winWidth = e.window.data1;
+			winHeight = e.window.data2;
+		}
+		else if (e.type == SDL_EVENT_WINDOW_EXPOSED)
+		{
+			// On some platforms (Linux i3) we don't get SIZE_CHANGED when
+			// we go fullscreen, but we do get an EXPOSED, and this works.
+			SDL_GetWindowSize(window, &winWidth, &winHeight);
+			SDL_Rect rect = { 0, 0, winWidth, winHeight };
+			SDL_SetRenderViewport(renderer, &rect);
 		}
 
 		if (softJoystick)
 		{
 			softJoystick->handle_event(this, e);
 		}
+	}
+
+	if (prevTexture)
+	{
+		SDL_DestroyTexture(prevTexture);
+		prevTexture = nullptr;
 	}
 
 	AWAIT coro::next_frame();
@@ -1130,57 +1142,44 @@ bool MGLDraw::LoadBMPResize(const char *name)
 
 bool MGLDraw::LoadBMP(const char *name, PALETTE pal, bool resize)
 {
-	owned::SDL_RWops rw = AppdataOpen(name);
-	if (!rw) {
+	owned::SDL_IOStream rw = AppdataOpen(name);
+	if (!rw)
+	{
 		// Asset stack printed error already
 		return false;
 	}
 
-#ifdef __EMSCRIPTEN__
-	// Under Emscripten, IMG_Load can't load some files which SDL_LoadBMP can.
-	SDL_Surface* b = SDL_LoadBMP_RW(rw.get(), SDL_FALSE);
+	owned::SDL_Surface b { IMG_Load_IO(rw.release(), true) };
 	if (!b)
 	{
-		b = IMG_Load_RW(rw.get(), SDL_FALSE);
-	}
-	rw.reset();
-#else  // __EMSCRIPTEN__
-	SDL_Surface* b = IMG_Load_RW(rw.release(), SDL_TRUE);
-#endif  // __EMSCRIPTEN__
-
-	if (!b) {
 		LogError("%s: %s", name, SDL_GetError());
 		return false;
 	}
 
-	if(pal && b->format->palette)
+	SDL_Palette *palette = SDL_GetSurfacePalette(b.get());
+	if(pal && palette)
 	{
-		for(int i = 0; i < 256 && i < b->format->palette->ncolors; i++)
+		for(int i = 0; i < 256 && i < palette->ncolors; i++)
 		{
-			pal[i].r = b->format->palette->colors[i].r;
-			pal[i].g = b->format->palette->colors[i].g;
-			pal[i].b = b->format->palette->colors[i].b;
+			pal[i].r = palette->colors[i].r;
+			pal[i].g = palette->colors[i].g;
+			pal[i].b = palette->colors[i].b;
+			pal[i].a = palette->colors[i].a;
 		}
 	}
 
-	if (b->format->BitsPerPixel != 8)
+	if (SDL_GetPixelFormatDetails(b->format)->bits_per_pixel != 8)
 	{
 		// Trying to load a truecolor image or something. Convert it to the palette.
-		SDL_PixelFormat* format = SDL_AllocFormat(SDL_PIXELFORMAT_INDEX8);
-		format->palette = SDL_AllocPalette(256);
+		owned::SDL_Palette newPalette = owned::SDL_CreatePalette(256);
 		for (int i = 0; i < 256; ++i)
 		{
-			format->palette->colors[i].r = thePal[i].r;
-			format->palette->colors[i].g = thePal[i].g;
-			format->palette->colors[i].b = thePal[i].b;
-			format->palette->colors[i].a = 255;
+			newPalette->colors[i].r = thePal[i].r;
+			newPalette->colors[i].g = thePal[i].g;
+			newPalette->colors[i].b = thePal[i].b;
+			newPalette->colors[i].a = 255;
 		}
-
-		SDL_Surface* b2 = SDL_ConvertSurface(b, format, 0);
-		SDL_FreeSurface(b);
-		b = b2;
-
-		SDL_FreeFormat(format);
+		b.reset(SDL_ConvertSurfaceAndColorspace(b.get(), SDL_PIXELFORMAT_INDEX8, newPalette.get(), SDL_COLORSPACE_UNKNOWN, 0));
 	}
 
 	if (resize)
@@ -1193,67 +1192,58 @@ bool MGLDraw::LoadBMP(const char *name, PALETTE pal, bool resize)
 	int w = std::min(b->w, xRes);
 	int h = std::min(b->h, yRes);
 
-	SDL_LockSurface(b);
+	SDL_LockSurface(b.get());
 	for(int i = 0; i < h; i++)
 	{
 		memcpy(&scrn[i*pitch], &((byte*) b->pixels)[b->pitch * i], w);
 	}
-	SDL_UnlockSurface(b);
+	SDL_UnlockSurface(b.get());
 
-	SDL_FreeSurface(b);
 	return true;
 }
 
 bool MGLDraw::SaveBMP(const char *name)
 {
-#if SDL_VERSION_ATLEAST(2, 0, 5)
-	SDL_Surface* surface = SDL_CreateRGBSurfaceWithFormat(0, xRes, yRes, 8, SDL_PIXELFORMAT_INDEX8);
-#else
-	SDL_Surface* surface = SDL_CreateRGBSurface(0, xRes, yRes, 8, 0, 0, 0, 0);
-#endif
+	SDL_Surface* surface = SDL_CreateSurface(xRes, yRes, SDL_PIXELFORMAT_INDEX8);
 	SDL_LockSurface(surface);
 	uint8_t* pixels = (uint8_t*)surface->pixels;
 	for (int y = 0; y < yRes; ++y)
 		memcpy(&pixels[y * surface->pitch], &scrn[y * pitch], xRes);
 	SDL_UnlockSurface(surface);
+	SDL_Palette* palette = SDL_CreateSurfacePalette(surface);
 	for (int i = 0; i < 256; ++i)
 	{
-		surface->format->palette->colors[i] = { thePal[i].r, thePal[i].g, thePal[i].b, thePal[i].a };
+		palette->colors[i] = { thePal[i].r, thePal[i].g, thePal[i].b, thePal[i].a };
 	}
-	SDL_SaveBMP_RW(surface, AppdataOpen_Write(name).release(), SDL_TRUE);
-	SDL_FreeSurface(surface);
+	SDL_SaveBMP_IO(surface, AppdataOpen_Write(name).release(), true);
+	AppdataSync();
+	SDL_DestroySurface(surface);
 	return true;
 }
 
 bool MGLDraw::SavePNG(const char* name)
 {
-#if SDL_VERSION_ATLEAST(2, 0, 5)
-	SDL_Surface* surface = SDL_CreateRGBSurfaceWithFormat(0, xRes, yRes, 8, SDL_PIXELFORMAT_INDEX8);
-#else
-	SDL_Surface* surface = SDL_CreateRGBSurface(0, xRes, yRes, 8, 0, 0, 0, 0);
-#endif
+	SDL_Surface* surface = SDL_CreateSurface(xRes, yRes, SDL_PIXELFORMAT_INDEX8);
 	SDL_LockSurface(surface);
 	uint8_t* pixels = (uint8_t*)surface->pixels;
 	for (int y = 0; y < yRes; ++y)
 		memcpy(&pixels[y * surface->pitch], &scrn[y * pitch], xRes);
 	SDL_UnlockSurface(surface);
+	SDL_Palette* palette = SDL_CreateSurfacePalette(surface);
 	for (int i = 0; i < 256; ++i)
 	{
-		surface->format->palette->colors[i] = { thePal[i].r, thePal[i].g, thePal[i].b, thePal[i].a };
+		palette->colors[i] = { thePal[i].r, thePal[i].g, thePal[i].b, thePal[i].a };
 	}
 	// NB: Unlike SaveBMP, this expects an absolute path. Maybe slightly surprising.
-	bool ok = IMG_SavePNG_RW(surface, SDL_RWFromFile(name, "wb"), SDL_TRUE) == 0;
-	SDL_FreeSurface(surface);
+	bool ok = IMG_SavePNG_IO(surface, SDL_IOFromFile(name, "wb"), true);
+	SDL_DestroySurface(surface);
 	return ok;
 }
 
 #ifdef _WIN32
 HWND MGLDraw::GetHWnd(void)
 {
-	SDL_SysWMinfo info;
-	SDL_VERSION(&info.version);
-	SDL_GetWindowWMInfo(window, &info);
-	return info.info.win.window;
+	return (HWND)SDL_GetPointerProperty(SDL_GetWindowProperties(window), SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr);
 }
 #endif
 
@@ -1269,12 +1259,12 @@ void MGLDraw::StartTextInput(int x, int y, int x2, int y2)
 	rect.w *= scale;
 	rect.h *= scale;
 
-	SDL_SetTextInputRect(&rect);
+	SDL_SetTextInputArea(window, &rect, 0);
 
-	if (SDL_GetHintBoolean("SteamDeck", SDL_FALSE))
+	if (SDL_GetHintBoolean("SteamDeck", false))
 	{
-		SDL_EventState(SDL_TEXTINPUT, SDL_ENABLE);
-		SDL_EventState(SDL_TEXTEDITING, SDL_ENABLE);
+		SDL_SetEventEnabled(SDL_EVENT_TEXT_INPUT, true);
+		SDL_SetEventEnabled(SDL_EVENT_TEXT_EDITING, true);
 
 		// The original addition of Steam Deck keyboard support doesn't set the
 		// rect https://github.com/libsdl-org/SDL/pull/6515 so do it ourselves.
@@ -1289,20 +1279,20 @@ void MGLDraw::StartTextInput(int x, int y, int x2, int y2)
 			rect.y,
 			rect.w,
 			rect.h,
-			SDL_GetHintBoolean(SDL_HINT_RETURN_KEY_HIDES_IME, SDL_FALSE) ? 0 : 1);
+			SDL_GetHintBoolean(SDL_HINT_RETURN_KEY_HIDES_IME, false) ? 0 : 1);
 		SDL_OpenURL(deeplink);
 	}
 	else
 	{
-		SDL_StartTextInput();
+		SDL_StartTextInput(window);
 	}
 }
 
 void MGLDraw::StopTextInput()
 {
 	SDL_Rect rect = { 0, 0, 0, 0 };
-	SDL_SetTextInputRect(&rect);
-	SDL_StopTextInput();
+	SDL_SetTextInputArea(window, &rect, 0);
+	SDL_StopTextInput(window);
 }
 
 //--------------------------------------------------------------------------
@@ -1328,16 +1318,19 @@ void SeedRNG(void)
 
 dword Random(dword range)
 {
+	if (range < 1) range = 1;
 	return std::uniform_int_distribution<dword>(0, range - 1)(mersenne);
 }
 
 int MGL_random(int range)
 {
+	if (range < 1) range = 1;
 	return std::uniform_int_distribution<int>(0, range - 1)(mersenne);
 }
 
 long MGL_randoml(long range)
 {
+	if (range < 1) range = 1;
 	return std::uniform_int_distribution<int>(0, range - 1)(mersenne);
 }
 

@@ -19,6 +19,8 @@
 #include "leveldialog.h"
 #include "viewdialog.h"
 #include "appdata.h"
+#include "owned_stdio.h"
+#include "log.h"
 
 // Begin JspEdit crap
 #if defined(_WIN32)
@@ -37,7 +39,7 @@ bool LaunchTool(char* cmdline)
 	}
 	else
 	{
-		fprintf(stderr, "CreateProcess failed: %lu\n", GetLastError());
+		LogError("LaunchTool(%s): CreateProcess failed: %lu", cmdline, GetLastError());
 		return false;
 	}
 }
@@ -52,6 +54,7 @@ bool LaunchTool(char* cmdline)
 		char* argv[2] = { cmdline, nullptr };
 
 		execv(argv[0], argv);
+		// We're in a fork, so log boringly.
 		fprintf(stderr, "LaunchTool(%s):\n", cmdline);
 		perror("execv");
 		exit(1);
@@ -63,7 +66,7 @@ bool LaunchTool(char* cmdline)
 	}
 	else
 	{
-		perror("fork");
+		LogError("LaunchTool(%s): fork: %d: %s", cmdline, errno, strerror(errno));
 		return false;
 	}
 }

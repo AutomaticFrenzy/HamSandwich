@@ -46,6 +46,8 @@ class Guy
 
 		byte IsActive(Map *map);
 
+		byte RealTeam();	// for HP checking
+
 		int safeX,safeY;	// last time you were safely on the ground
 		int x,y,z;
 		int oldx,oldy;
@@ -113,8 +115,8 @@ void KillKids(Guy *g);
 void GuySwap(int sx,int sy,int width,int height,int dx,int dy);
 void ShiftGuys(char dx,char dy,Map *map);
 void CameraOnPlayer(byte sum);
-void LoadGuys(SDL_RWops *f);
-void SaveGuys(SDL_RWops *f);
+void LoadGuys(SDL_IOStream *f);
+void SaveGuys(SDL_IOStream *f);
 void PrepGuys(Map *map);
 void KillAllMonsters(byte type);
 byte AnyMonsterExists(void);

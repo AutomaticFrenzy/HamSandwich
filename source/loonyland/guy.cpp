@@ -12,6 +12,7 @@
 #include "bossbash.h"
 #include "ch_summon.h"
 #include "loonyArchipelago.h"
+#include "log.h"
 
 static std::unique_ptr<Guy[]> guys;
 static int maxGuys;
@@ -1689,7 +1690,7 @@ Guy *AddGuy(int x,int y,int z,byte type)
 static_assert(offsetof(Guy, parent) == 64, "save compatibility broken; adjust this assertion if you are sure");
 static_assert(offsetof(Guy, hp) + 28 <= sizeof(Guy), "save compatibility broken; adjust this assertion if you are sure");
 
-void SaveGuys(SDL_RWops *f)
+void SaveGuys(SDL_IOStream *f)
 {
 	int i,num;
 
@@ -1703,39 +1704,39 @@ void SaveGuys(SDL_RWops *f)
 		}
 	}
 
-	SDL_RWwrite(f, &num, sizeof(int), 1);
+	SDL_WriteIO(f, &num, sizeof(int));
 	for(i=0;i<maxGuys;i++)
 	{
 		if(guys[i].type!=MONS_NONE && guys[i].type!=player.monsType)
 		{
 			// Always write 32-bit-compatible saves.
-			SDL_RWwrite(f, &guys[i], 64, 1);
+			SDL_WriteIO(f, &guys[i], 64);
 			// Write 0 for Guy* parent. The only monster in LL1 that uses parent is Polterguy and you can't save on his map.
 			// If you ever need to save this, do like LL2 does and save the Guy's ID instead.
 			dword zero = 0;
-			SDL_RWwrite(f, &zero, 4, 1);
-			SDL_RWwrite(f, &guys[i].hp, 28, 1);
+			SDL_WriteIO(f, &zero, 4);
+			SDL_WriteIO(f, &guys[i].hp, 28);
 		}
 	}
 }
 
-void LoadGuys(SDL_RWops *f)
+void LoadGuys(SDL_IOStream *f)
 {
 	int i,num;
 
 	ExitGuys();
 	InitGuys(MAX_MAPMONS * 2);  // Leave room for Farley and summons
 
-	SDL_RWread(f, &num, sizeof(int), 1);
+	SDL_ReadIO(f, &num, sizeof(int));
 
 	bool saveIs64Bit = false;
 
 	for(i=0;i<num;i++)
 	{
-		SDL_RWread(f, &guys[i], 64, 1);
-		SDL_RWseek(f, 4, RW_SEEK_CUR);  // Skip 4 bytes of Guy* parent.
+		SDL_ReadIO(f, &guys[i], 64);
+		SDL_SeekIO(f, 4, SDL_IO_SEEK_CUR);  // Skip 4 bytes of Guy* parent.
 		guys[i].parent = nullptr;  // Set parent to null.
-		SDL_RWread(f, &guys[i].hp, 28, 1);
+		SDL_ReadIO(f, &guys[i].hp, 28);
 
 		// The above loads 32-bit saves, but there may be 64-bit save files
 		// floating about, since the incompatibility was not discovered right
@@ -1748,14 +1749,14 @@ void LoadGuys(SDL_RWops *f)
 			if (oldRectX != guys[i].rectx)
 			{
 				saveIs64Bit = true;
-				SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "Warning: assuming 64-bit save based on rectx %d != %d", oldRectX, guys[i].rectx);
+				LogWarn("Warning: assuming 64-bit save based on rectx %d != %d", oldRectX, guys[i].rectx);
 			}
 		}
 		if (saveIs64Bit)
 		{
-			SDL_RWseek(f, -28 + 4, RW_SEEK_CUR);  // Seek back 28, then +4 for the second half of Guy* parent.
-			SDL_RWread(f, &guys[i].hp, 28, 1);  // Read the second half of Guy again.
-			SDL_RWseek(f, 4, RW_SEEK_CUR);  // Skip 4 bytes of padding.
+			SDL_SeekIO(f, -28 + 4, SDL_IO_SEEK_CUR);  // Seek back 28, then +4 for the second half of Guy* parent.
+			SDL_ReadIO(f, &guys[i].hp, 28);  // Read the second half of Guy again.
+			SDL_SeekIO(f, 4, SDL_IO_SEEK_CUR);  // Skip 4 bytes of padding.
 		}
 
 		// Delete Farley the follower so he will be freshly respawned, but

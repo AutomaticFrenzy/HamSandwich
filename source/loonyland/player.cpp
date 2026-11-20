@@ -431,7 +431,7 @@ void InitPlayer(byte initWhat,byte world,byte level)
 	else
 		player.fireFlags&=(~FF_GUIDED);
 	player.areaName[0]='\0';
-	
+
 }
 
 void ExitPlayer(void)
@@ -747,7 +747,7 @@ void PlayerSetVar(int v,int val)
 		if (!ArchipelagoMode)
 		{
 			PlayerSetVar(VAR_QUESTDONE + QUEST_DAISY, 1);
-		}	
+		}
 	}
 	if(v==VAR_TOWNOPEN && oldval==0)
 	{
@@ -1936,7 +1936,7 @@ void PlayerCalcStats()
 	}
 }
 
-void DescribeSave(span<char> dst, const player_t* player)
+void DescribeSave(std::span<char> dst, const player_t* player)
 {
 	// Slot number and area name
 	dst = ham_sprintf(dst, "%d: %s", player->lastSave + 1, player->areaName);

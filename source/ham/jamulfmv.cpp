@@ -5,6 +5,7 @@
 #include "clock.h"
 #include "appdata.h"
 #include "control.h"
+#include "jamulsound.h"
 
 // different kinds of flic chunks
 enum
@@ -74,6 +75,7 @@ static void FLI_docolor2(byte *p,MGLDraw *mgl)
 			FLI_pal[palpos].r = p[pos++];
 			FLI_pal[palpos].g = p[pos++];
 			FLI_pal[palpos].b = p[pos++];
+			FLI_pal[palpos].a = 255;
 			palpos++;
 			--numcol;
 		} while(numcol>0);
@@ -215,17 +217,17 @@ static void FLI_doBRUN(byte *scrn,int scrWidth,byte *p)
 	}
 }
 
-static void FLI_nextchunk(SDL_RWops* FLI_file, MGLDraw *mgl, int scrWidth)
+static void FLI_nextchunk(SDL_IOStream* FLI_file, MGLDraw *mgl, int scrWidth)
 {
 	chunkheader chead;
 
-	SDL_RWread(FLI_file, &chead,1,sizeofchunkheader);
+	SDL_ReadIO(FLI_file, &chead, sizeofchunkheader);
 	if(chead.kind==FLI_COPY)
 		chead.size=fliWidth*fliHeight+sizeofchunkheader;	// a hack to make up for a bug in Animator?
 
 	std::vector<byte> buffer(chead.size-sizeofchunkheader, 0);
 	byte *p = buffer.data();
-	SDL_RWread(FLI_file, p,1,chead.size-sizeofchunkheader);
+	SDL_ReadIO(FLI_file, p, chead.size-sizeofchunkheader);
 
 	switch(chead.kind)
 	{
@@ -255,12 +257,12 @@ static void FLI_nextchunk(SDL_RWops* FLI_file, MGLDraw *mgl, int scrWidth)
 	}
 }
 
-static void FLI_nextfr(SDL_RWops* FLI_file, MGLDraw *mgl, int scrWidth)
+static void FLI_nextfr(SDL_IOStream* FLI_file, MGLDraw *mgl, int scrWidth)
 {
-	long start = SDL_RWtell(FLI_file);
+	long start = SDL_TellIO(FLI_file);
 
 	frmheader fhead;
-	SDL_RWread(FLI_file,&fhead,1,sizeof(frmheader));
+	SDL_ReadIO(FLI_file,&fhead,sizeof(frmheader));
 
 	// check to see if this is a FLC file's special frame... if it is, skip it
 	if (fhead.magic == 0xF1FA)
@@ -273,7 +275,7 @@ static void FLI_nextfr(SDL_RWops* FLI_file, MGLDraw *mgl, int scrWidth)
 
 	// Some movies (TWOLCREDITS.flc) have padding at the end of the frame,
 	// after its chunks, so it needs to be skipped.
-	SDL_RWseek(FLI_file, start + fhead.size, RW_SEEK_SET);
+	SDL_SeekIO(FLI_file, start + fhead.size, SDL_IO_SEEK_SET);
 }
 
 TASK(byte) FLI_play(const char *name, byte loop, word wait, MGLDraw *mgl, FlicCallBack callback)
@@ -281,12 +283,12 @@ TASK(byte) FLI_play(const char *name, byte loop, word wait, MGLDraw *mgl, FlicCa
 	int frmon=0;
 	fliheader FLI_hdr;
 	int scrWidth;
-	char k;
+	char k = 0;
 	dword playbackTime, currentTime;
 	dword oldGamepadButtons = ~0;
 	dword gamepadButtons = GetGamepadButtons();
 
-	owned::SDL_RWops FLI_file = AppdataOpen(name);
+	owned::SDL_IOStream FLI_file = AppdataOpen(name);
 	if (!FLI_file)
 	{
 		// Asset stack printed error already
@@ -294,7 +296,7 @@ TASK(byte) FLI_play(const char *name, byte loop, word wait, MGLDraw *mgl, FlicCa
 	}
 
 	// Read the main part of the header.
-	SDL_RWread(FLI_file, &FLI_hdr, 1, sizeof(fliheader));
+	SDL_ReadIO(FLI_file, &FLI_hdr, sizeof(fliheader));
 	fliWidth = FLI_hdr.width;
 	fliHeight = FLI_hdr.height;
 
@@ -310,21 +312,22 @@ TASK(byte) FLI_play(const char *name, byte loop, word wait, MGLDraw *mgl, FlicCa
 	// In older FLCs (everything except LL2's ending.flc), there is a dummy
 	// frame between the header and this location that must be skipped.
 	int32_t ofs1;
-	SDL_RWseek(FLI_file, 80, RW_SEEK_SET);
-	SDL_RWread(FLI_file, &ofs1, 4, 1);
+	SDL_SeekIO(FLI_file, 80, SDL_IO_SEEK_SET);
+	SDL_ReadIO(FLI_file, &ofs1, 4);
 	// There is also the offset of the second frame following this, but all
 	// released movies have it at its expected location.
 
 	// The end of the header is at 128 bytes. In some movies, the real first
 	// frame is there, but in others there's a dummy frame with information
 	// we don't care about. Luckily ofs1 points to the real first frame.
-	SDL_RWseek(FLI_file, ofs1, RW_SEEK_SET);
+	SDL_SeekIO(FLI_file, ofs1, SDL_IO_SEEK_SET);
 
 	mgl->LastKeyPressed();	// clear key buffer
 
 	playbackTime = timeGetTime() - 1;
 	do
 	{
+		JamulSoundUpdate();
 		currentTime = timeGetTime();
 
 		// If vsync time is faster than FLC framerate, idle.
@@ -345,7 +348,7 @@ TASK(byte) FLI_play(const char *name, byte loop, word wait, MGLDraw *mgl, FlicCa
 			if((loop)&&(frmon==FLI_hdr.frames+1))
 			{
 				frmon=1;
-				SDL_RWseek(FLI_file, ofs1, RW_SEEK_SET);
+				SDL_SeekIO(FLI_file, ofs1, SDL_IO_SEEK_SET);
 			}
 			if((!loop)&&(frmon==FLI_hdr.frames))
 				frmon=FLI_hdr.frames+1;
@@ -354,14 +357,32 @@ TASK(byte) FLI_play(const char *name, byte loop, word wait, MGLDraw *mgl, FlicCa
 		}
 
 		AWAIT mgl->Flip();
-		k=mgl->LastKeyPressed();
-		// key #27 is escape
-		oldGamepadButtons = gamepadButtons;
-		gamepadButtons = GetGamepadButtons();
-	} while((frmon<FLI_hdr.frames+1)&&(mgl->Process()) && (k!=27) && !(gamepadButtons & ~oldGamepadButtons & ((1 << SDL_CONTROLLER_BUTTON_START) | (1 << SDL_CONTROLLER_BUTTON_BACK))));
+		if (ControlScheme() == MYSTIC_CONTROL_SCHEME)
+		{
+			UpdateControls();
+			if (ButtonTapped(CONTROL_ESCAPE|CONTROL_B1|CONTROL_B2))
+			{
+				k = 27;
+				UpdateControls();
+				break;
+			}
+		}
+		else
+		{
+			k = mgl->LastKeyPressed();
+			// key #27 is escape
+			oldGamepadButtons = gamepadButtons;
+			gamepadButtons = GetGamepadButtons();
+			if ((k == 27) || (gamepadButtons & ~oldGamepadButtons & ((1 << SDL_GAMEPAD_BUTTON_START) | (1 << SDL_GAMEPAD_BUTTON_BACK))))
+			{
+				k = 27;
+				break;
+			}
+		}
+	} while((frmon<FLI_hdr.frames+1)&&(mgl->Process()) );
 
 	FLI_file.reset();
 	mgl->ResizeBuffer(oldWidth, oldHeight);
 
-	CO_RETURN k != 27;
+	CO_RETURN k!=27;
 }

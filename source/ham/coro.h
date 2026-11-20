@@ -2,9 +2,10 @@
 #define HAM_CORO_H
 
 #include <functional>
+#include "jamultypes.h"
 
 #ifdef USE_COROUTINES
-#include "coro_active.inc.h"
+#include "coro.inl"
 #else  // USE_COROUTINES
 
 namespace coro {

@@ -485,6 +485,8 @@ void Guy::Shoved(int xx,int yy,Map *map,world_t *world)
 
 	if(MonsterFlags(type)&MF_NOMOVE)
 		return;
+	if(type==MONS_BIRD && player.var[VAR_BIRDCHAT]==0 && (levelDef[player.levelNum].flags&LF_ARENA)==0)
+		return;
 
 	if(type==MONS_BUNNYTROOP || type==MONS_BUNNYBOSS || type==MONS_BUNNYBOSS2 || type==MONS_THUG || type==MONS_BRUISER || type==MONS_JUNKSMITH)
 	{
@@ -517,7 +519,7 @@ void Guy::Shoved(int xx,int yy,Map *map,world_t *world)
 	}
 	if(!CanWalkNoMons(newx,y,map,world))
 		newx=x;
-	if(!CanWalkNoMons(x,newy,map,world))
+	if(!CanWalkNoMons(newx,newy,map,world))
 		newy=y;
 
 	if(type==player.monsType)
@@ -802,6 +804,13 @@ byte Guy::IsActive(Map *map)
 	return active;
 }
 
+byte Guy::RealTeam()
+{
+	if (mindControl)
+		return EVIL;    // good guys can never be mind controlled
+	return team;
+}
+
 void Guy::FindTarget(Map *map,world_t *world)
 {
 	int i;
@@ -939,6 +948,8 @@ void Guy::FrozenUpdate(Map *map,world_t *world)
 	Clamp(&ddx,FIXAMT*TILE_WIDTH);
 	Clamp(&ddy,FIXAMT*TILE_HEIGHT);
 
+	bool danger=false;	 // to fix the shoved-into-danger-terrain bug
+
 	x+=ddx;
 
 	if(!CanWalk(x,y,map,world))
@@ -952,6 +963,7 @@ void Guy::FrozenUpdate(Map *map,world_t *world)
 		// check to see if this would put you in water/stuff
 		if(TerrainIs((x/(TILE_WIDTH*FIXAMT)),(y/(TILE_HEIGHT*FIXAMT)),TF_SKY|TF_LAVA|TF_WATER))
 		{
+			danger=true;	//CanWalk may have shoved us into danger
 			// bump if you would enter a danger square
 			x-=ddx;
 			if(WallBumpMons(type))
@@ -972,11 +984,18 @@ void Guy::FrozenUpdate(Map *map,world_t *world)
 		// check to see if this would put you in water/stuff
 		if(TerrainIs((x/(TILE_WIDTH*FIXAMT)),(y/(TILE_HEIGHT*FIXAMT)),TF_SKY|TF_LAVA|TF_WATER))
 		{
+			danger=true;	//CanWalk may have shoved us into danger
 			// bump if you would enter a danger square
 			y-=ddy;
 			if(WallBumpMons(type))
 				wallBump|=2;	// tell it that it hit a wall
 		}
+	}
+
+	if(danger && !CanWalkNoMons(x,y,map,world))		// we were shove-glitched into danger terrain! reset all movement!
+	{
+		x=oldx;
+		y=oldy;
 	}
 
 	if(MonsterFlags(type)&MF_FLYING)
@@ -1338,6 +1357,8 @@ void Guy::Update(Map *map,world_t *world)
 		ddy/=2;
 	}
 
+	bool danger=false;	 // to fix the shoved-into-danger-terrain bug
+
 	x+=ddx;
 
 	if(!CanWalk(x,y,map,world))
@@ -1351,6 +1372,7 @@ void Guy::Update(Map *map,world_t *world)
 		// check to see if this would put you in water/stuff
 		if(TerrainIs((x/(TILE_WIDTH*FIXAMT)),(y/(TILE_HEIGHT*FIXAMT)),TF_SKY|TF_LAVA|TF_WATER))
 		{
+			danger=true;	//CanWalk may have shoved us into danger
 			// bump if you would enter a danger square
 			x-=ddx;
 			if(WallBumpMons(type))
@@ -1371,11 +1393,18 @@ void Guy::Update(Map *map,world_t *world)
 		// check to see if this would put you in water/stuff
 		if(TerrainIs((x/(TILE_WIDTH*FIXAMT)),(y/(TILE_HEIGHT*FIXAMT)),TF_SKY|TF_LAVA|TF_WATER))
 		{
+			danger=true;	//CanWalk may have shoved us into danger
 			// bump if you would enter a danger square
 			y-=ddy;
 			if(WallBumpMons(type))
 				wallBump|=2;	// tell it that it hit a wall
 		}
+	}
+	
+	if(danger && !CanWalkNoMons(x,y,map,world))		// we were shove-glitched into danger terrain! reset all movement!
+	{
+		x=oldx;
+		y=oldy;
 	}
 
 	if(MonsterFlags(type)&MF_FLYING)
@@ -1818,7 +1847,7 @@ void GuyFact(Guy *g)
 			sprintf(s2,"has %d Armor.",monsType[g->type].armor);
 			break;
 		case 2:
-			sprintf(s2,"has %d/%d Life.",g->hp,MonsterHP(g->type,g->team));
+			sprintf(s2,"has %d/%d Life.",g->hp,MonsterHP(g->type,g->RealTeam()));
 			break;
 		case 3:
 			sprintf(s2,"does %d damage.",monsType[g->type].damage);
@@ -2409,7 +2438,7 @@ void Guy::GetShotReal(int dx,int dy,word damage,Map *map,world_t *world)
 				if(bulletHittingType==BLT_CLOCKBULLET || bulletHittingType==BLT_CLOCKBOOM || bulletHittingType==BLT_CLOCKBOOM2)
 				{
 					TalentPoint(TLT_CLOCKWORK,1);
-					RepairClockbot(player.var[VAR_CLOCKBOT-IT_LOG+IT_CAN]);
+					RepairClockbot(RecoverAmt(player.var[VAR_CLOCKBOT-IT_LOG+IT_CAN]));
 				}
 			}
 			else if(meleeAttacker->type==MONS_GHOST || meleeAttacker->type==MONS_BONEHEAD || (meleeAttacker->type==MONS_MOUSE4 && meleeAttacker->mindControl==0))
@@ -2421,7 +2450,7 @@ void Guy::GetShotReal(int dx,int dy,word damage,Map *map,world_t *world)
 			else if(meleeAttacker->type==MONS_YOURBOT)
 			{
 				TalentPoint(TLT_CLOCKWORK,1);
-				RepairClockbot(player.var[VAR_CLOCKBOT-IT_LOG+IT_CAN]);
+				RepairClockbot(RecoverAmt(player.var[VAR_CLOCKBOT-IT_LOG+IT_CAN]));
 			}
 #ifdef DIRECTORS
 			if(meleeAttacker!=NULL && meleeAttacker->type==MONS_LILBADGER)
@@ -2453,9 +2482,9 @@ void Guy::GetShotReal(int dx,int dy,word damage,Map *map,world_t *world)
 	{
 		lifeGuy=this;
 		if(type==MONS_SHROOM)
-			ShowEnemyLife(MonsterName(type),formerHP*128/MonsterHP(originalType,team),hp*128/MonsterHP(originalType,team),(byte)(hp>0));
+			ShowEnemyLife(MonsterName(type),formerHP*128/MonsterHP(originalType,RealTeam()),hp*128/MonsterHP(originalType,RealTeam()),(byte)(hp>0));
 		else
-			ShowEnemyLife(MonsterName(type),formerHP*128/MonsterHP(type,team),hp*128/MonsterHP(type,team),(byte)(hp>0));
+			ShowEnemyLife(MonsterName(type),formerHP*128/MonsterHP(type,RealTeam()),hp*128/MonsterHP(type,RealTeam()),(byte)(hp>0));
 	}
 	else if(type==player.monsType)
 	{
@@ -2619,7 +2648,7 @@ void UpdateGuys(Map *map,world_t *world)
 					if(PlagueOn() && guys[i]->team==EVIL && Distance(guys[i]->x,guys[i]->y,goodguy->x,goodguy->y)<=(int)(SpecificSkillVal(1,SKILL_PLAGUE)*FIXAMT))
 						j+=2;
 
-					guys[i]->GetShotReal(0,0,CurseDmg(j,GOOD+EVIL-guys[i]->team),map,world);
+					guys[i]->GetShotReal(0,0,PoisonDmg(j,GOOD+EVIL-guys[i]->team),map,world);
 					if(guys[i]->hp!=0)
 						guys[i]->ouch=3;
 				}
@@ -2797,7 +2826,7 @@ Guy *AddGuy(int x,int y,int z,byte type)
 	return NULL;
 }
 
-void SaveGuys(SDL_RWops *f)
+void SaveGuys(SDL_IOStream *f)
 {
 	int i,num;
 	Guy *tgt,*parent;
@@ -2812,7 +2841,7 @@ void SaveGuys(SDL_RWops *f)
 		}
 	}
 
-	SDL_RWwrite(f,&num,sizeof(int),1);
+	SDL_WriteIO(f,&num,sizeof(int));
 	for(i=0;i<maxGuys;i++)
 	{
 		if(guys[i]->type!=MONS_NONE)
@@ -2821,16 +2850,16 @@ void SaveGuys(SDL_RWops *f)
 			dword parent = guys[i]->parent ? guys[i]->parent->ID : 65535;
 
 			// sizes should total to 124
-			SDL_RWwrite(f,guys[i],offsetof(Guy, target),1);
-			SDL_RWwrite(f,&target,4,1);
-			SDL_RWwrite(f,&parent,4,1);
-			SDL_RWwrite(f,&guys[i]->hp,sizeof(Guy) - offsetof(Guy, hp),1);
+			SDL_WriteIO(f,guys[i],offsetof(Guy, target));
+			SDL_WriteIO(f,&target,4);
+			SDL_WriteIO(f,&parent,4);
+			SDL_WriteIO(f,&guys[i]->hp,sizeof(Guy) - offsetof(Guy, hp));
 			static_assert(sizeof(Guy) - offsetof(Guy, hp) + offsetof(Guy, target) + 4 + 4 == 124, "save compatibility broken; adjust this assertion if you are sure");
 		}
 	}
 }
 
-void LoadGuys(SDL_RWops *f)
+void LoadGuys(SDL_IOStream *f)
 {
 	int i,num;
 	Guy g;
@@ -2838,16 +2867,16 @@ void LoadGuys(SDL_RWops *f)
 	ExitGuys();
 	InitGuys(MAX_MAPMONS);
 
-	SDL_RWread(f,&num,sizeof(int),1);
+	SDL_ReadIO(f,&num,sizeof(int));
 
 	for(i=0;i<num;i++)
 	{
 		dword target, parent;
 		// sizes should total to 124
-		SDL_RWread(f,&g,offsetof(Guy, target),1);
-		SDL_RWread(f,&target,4,1);
-		SDL_RWread(f,&parent,4,1);
-		SDL_RWread(f,&g.hp,sizeof(Guy) - offsetof(Guy, hp),1);
+		SDL_ReadIO(f,&g,offsetof(Guy, target));
+		SDL_ReadIO(f,&target,4);
+		SDL_ReadIO(f,&parent,4);
+		SDL_ReadIO(f,&g.hp,sizeof(Guy) - offsetof(Guy, hp));
 		static_assert(sizeof(Guy) - offsetof(Guy, hp) + offsetof(Guy, target) + 4 + 4 == 124, "save compatibility broken; adjust this assertion if you are sure");
 
 		(*guys[g.ID])=g;
@@ -3882,10 +3911,10 @@ void HealGuy(Guy *g,word amt)
 
 	show=amt;
 
-	if(g->hp+amt>MonsterHP(g->type,g->team))
+	if(g->hp+amt>MonsterHP(g->type,g->RealTeam()))
 	{
-		show=MonsterHP(g->type,g->team)-g->hp;
-		g->hp=MonsterHP(g->type,g->team);
+		show=MonsterHP(g->type,g->RealTeam())-g->hp;
+		g->hp=MonsterHP(g->type,g->RealTeam());
 	}
 	else
 		g->hp+=amt;

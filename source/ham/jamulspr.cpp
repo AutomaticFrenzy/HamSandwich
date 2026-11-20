@@ -97,21 +97,21 @@ sprite_t::sprite_t(const byte *info) noexcept
 }
 
 // REGULAR MEMBER FUNCTIONS
-bool sprite_t::LoadData(SDL_RWops *f)
+bool sprite_t::LoadData(SDL_IOStream *f)
 {
-	if(SDL_RWread(f,data.data(),1,data.size())!=data.size())
+	if(SDL_ReadIO(f,data.data(),data.size())!=data.size())
 	{
 		return false;
 	}
 	return true;
 }
 
-bool sprite_t::SaveData(SDL_RWops *f) const
+bool sprite_t::SaveData(SDL_IOStream *f) const
 {
 	if(data.empty())
 		return true;
 
-	if(SDL_RWwrite(f,data.data(),1,data.size())!=data.size())
+	if(SDL_WriteIO(f,data.data(),data.size())!=data.size())
 	{
 		return false;
 	}
@@ -1039,6 +1039,116 @@ void sprite_t::DrawShadow(int x, int y, MGLDraw *mgl) const
 	}
 }
 
+void sprite_t::Draw(int x, int y, MGLDraw *mgl, Recolor recolor) const
+{
+	const byte *src;
+	byte *dst, b, skip;
+	int pitch;
+	int srcx, srcy;
+	byte noDraw;
+	int i;
+
+	x -= ofsx;
+	y -= ofsy;
+	int constrainX2 = ResolveConstrainX2(mgl);
+	int constrainY2 = ResolveConstrainY2(mgl);
+	if (x > constrainX2 || y > constrainY2)
+		return; // whole sprite is offscreen
+
+	pitch = mgl->GetWidth();
+	src = data.data();
+	dst = mgl->GetScreen() + x + y*pitch;
+
+	srcx = x;
+	srcy = y;
+	if (srcy < constrainY)
+		noDraw = 1;
+	else
+		noDraw = 0;
+	while (srcy < height + y)
+	{
+		if ((*src)&128) // transparent run
+		{
+			b = (*src)&127;
+			srcx += b;
+			dst += b;
+			src++;
+		}
+		else // solid run
+		{
+			b = *src;
+			src++;
+			if (srcx < constrainX - b || srcx > constrainX2)
+			{
+				// don't draw this line
+				src += b;
+				srcx += b;
+				dst += b;
+			}
+			else if (srcx < constrainX)
+			{
+				// skip some of the beginning
+				skip = (constrainX - srcx);
+				src += skip;
+				srcx += skip;
+				dst += skip;
+				b -= skip;
+				if (srcx > constrainX2 - b)
+				{
+					skip = (b - (constrainX2 - srcx)) - 1;
+					if (!noDraw)
+						for (i = 0; i < b - skip; ++i)
+							dst[i] = recolor.Apply(src[i], dst[i]);
+					src += b;
+					srcx += b;
+					dst += b;
+				}
+				else
+				{
+					if (!noDraw)
+						for (i = 0; i < b; ++i)
+							dst[i] = recolor.Apply(src[i], dst[i]);
+					src += b;
+					srcx += b;
+					dst += b;
+				}
+			}
+			else if (srcx > constrainX2 - b)
+			{
+				// skip some of the end
+				skip = (srcx - (constrainX2 - b)) - 1;
+				if (!noDraw)
+					for (i = 0; i < b - skip; ++i)
+						dst[i] = recolor.Apply(src[i], dst[i]);
+				src += b;
+				srcx += b;
+				dst += b;
+			}
+			else
+			{
+				// do it all!
+				if (!noDraw)
+					for (i = 0; i < b; ++i)
+						dst[i] = recolor.Apply(src[i], dst[i]);
+				srcx += b;
+				src += b;
+				dst += b;
+			}
+		}
+		if (srcx >= width + x)
+		{
+			srcx = x;
+			srcy++;
+			dst += pitch;
+			dst -= width;
+			if (srcy >= constrainY)
+				noDraw = 0;
+			if (srcy > constrainY2)
+				return;
+		}
+	}
+}
+
 // -------------------------------------------------------------------------
 // ***************************** SPRITE_SET_T ******************************
 // -------------------------------------------------------------------------
@@ -1060,20 +1170,20 @@ bool sprite_set_t::Load(const char *fname)
 
 	spr.clear();
 
-	owned::SDL_RWops f = AppdataOpen(fname);
+	owned::SDL_IOStream f = AppdataOpen(fname);
 	if(!f) {
 		// Asset stack printed error already
 		return false;
 	}
 	// read the count
 	word count;
-	SDL_RWread(f, &count, 2, 1);
+	SDL_ReadIO(f, &count, 2);
 
 	// allocate a buffer to load sprites into
 	std::vector<byte> buffer(SPRITE_INFO_SIZE*count);
 
 	// read in the sprite headers
-	if(SDL_RWread(f,buffer.data(),SPRITE_INFO_SIZE,count)!=count)
+	if(SDL_ReadIO(f,buffer.data(),SPRITE_INFO_SIZE*count)!=SPRITE_INFO_SIZE*count)
 	{
 		return false;
 	}
@@ -1101,7 +1211,7 @@ bool sprite_set_t::Save(const char *fname) const
 		return false;
 	// write the count
 	word count = spr.size();
-	SDL_RWwrite(f,&count,2,1);
+	SDL_WriteIO(f,&count,2);
 
 	// allocate a buffer to copy sprites into
 	std::vector<byte> buffer(SPRITE_INFO_SIZE*count);
@@ -1110,7 +1220,7 @@ bool sprite_set_t::Save(const char *fname) const
 		spr[i].GetHeader(&buffer[i*SPRITE_INFO_SIZE]);
 
 	// write the sprites out
-	if(SDL_RWwrite(f,buffer.data(),SPRITE_INFO_SIZE,count)!=count)
+	if(SDL_WriteIO(f,buffer.data(),SPRITE_INFO_SIZE*count)!=count)
 	{
 		return false;
 	}

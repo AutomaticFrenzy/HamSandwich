@@ -1,14 +1,15 @@
 #include "timeattack.h"
+#include <string.h>
+#include <stdint.h>
 #include "options.h"
 #include "control.h"
 #include "display.h"
-#include "hammusic.h"
+#include "jamulsound.h"
 #include "jamultypes.h"
 #include "loop.h"
 #include "register.h"
 #include "title.h"
 #include "game.h"
-#include <stdint.h>
 
 byte g_TimeAttackBright;
 int8_t g_TimeAttackVelocity;

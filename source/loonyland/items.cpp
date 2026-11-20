@@ -202,7 +202,7 @@ void InitItems(void)
 			rect.w = spr->width;
 			rect.h = spr->height;
 
-			SDL_UnionRect(&everything, &rect, &everything);
+			SDL_GetRectUnion(&everything, &rect, &everything);
 
 			// Use precise shadow sprite boundaries.
 			rect.x = 0 - spr->ofsx - spr->height/2;
@@ -210,7 +210,7 @@ void InitItems(void)
 			rect.w = spr->height/2 + spr->width;
 			rect.h = spr->height/2;
 
-			SDL_UnionRect(&everything, &rect, &everything);
+			SDL_GetRectUnion(&everything, &rect, &everything);
 		}
 	}
 
@@ -222,10 +222,8 @@ void InitItems(void)
 	extents.up = floor_div(everything.y + everything.h + TILE_HEIGHT/2, TILE_HEIGHT).quot;
 	extents.down = -floor_div(everything.y + TILE_HEIGHT/2, TILE_HEIGHT).quot;
 
-#ifndef NDEBUG
 	LogDebug("Items bounding rect: x=%d y=%d w=%d h=%d", everything.x, everything.y, everything.w, everything.h);
 	LogDebug("Tile spread: x: %+d to %+d, y: %+d to %+d, inclusive", -extents.left, extents.right, -extents.up, extents.down);
-#endif
 }
 
 ItemRenderExtents GetItemRenderExtents()

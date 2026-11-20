@@ -2230,7 +2230,7 @@ void UpdateChat(void)
 		curLine=4;
 	}
 
-	if(curChar< LINE_MAX_CHAR)
+	if(curLine < 4 && curChar < LINE_MAX_CHAR)
 	{
 		curChar++;
 		if (ArchipelagoMode)

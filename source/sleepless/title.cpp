@@ -275,13 +275,13 @@ byte MainMenuUpdate(int *lastTime,MGLDraw *mgl)
 		return 1;
 	}
 #ifndef NDEBUG
-	else if (c == SDLK_p)
+	else if (c == SDLK_P)
 	{
 		cursor=6;
 		return 1;
 	}
 #endif
-	else if (c == SDLK_e)
+	else if (c == SDLK_E)
 	{
 		cursor=5;
 		return 1;
@@ -535,6 +535,7 @@ TASK(byte) SpeedSplash(MGLDraw *mgl,const char *fname)
 		curpal[i].r=0;
 		curpal[i].g=0;
 		curpal[i].b=0;
+		curpal[i].a=255;
 	}
 	mgl->SetPalette(curpal);
 	mgl->RealizePalette();
@@ -649,6 +650,7 @@ TASK(void) SplashScreen(MGLDraw *mgl,const char *fname,int delay,byte sound)
 		curpal[i].r=0;
 		curpal[i].g=0;
 		curpal[i].b=0;
+		curpal[i].a=255;
 	}
 	mgl->SetPalette(curpal);
 	mgl->RealizePalette();

@@ -19,6 +19,8 @@
 #include "steam.h"
 #include "loonyArchipelago.h"
 
+#include <SDL3/SDL_main.h>
+
 extern const HamSandwichMetadata* GetHamSandwichMetadata();
 
 TASK(int) main(int argc, char *argv[])
@@ -46,7 +48,7 @@ TASK(int) main(int argc, char *argv[])
 
 	while (running)
 	{
-		DBG("Mainmenu");
+		LogVerbose("Mainmenu");
 		switch(AWAIT MainMenu(mainmgl))
 		{
 			default:

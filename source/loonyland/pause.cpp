@@ -453,7 +453,7 @@ void GetSaves(void)
 		}
 		else
 		{
-			SDL_RWread(f,&p,sizeof(player_t),1);
+			SDL_ReadIO(f,&p,sizeof(player_t));
 			f.reset();
 
 			DescribeSave(saveDesc[i], &p);
@@ -480,7 +480,7 @@ void LoadGame(int i)
 	}
 	else
 	{
-		SDL_RWread(f, &player, sizeof(player_t), 1);
+		SDL_ReadIO(f, &player,sizeof(player_t));
 		if (ArchipelagoMode)
 		{
 			ArchipelagoLoadPlayer();
@@ -588,7 +588,7 @@ void SaveGame(int i)
 		player.desty=goodguy->mapy;
 		if(!(player.cheatsOn&PC_HARDCORE))
 			player.numSaves++;	// saves do not count in hardcore mode
-		SDL_RWwrite(f,&player,sizeof(player_t),1);
+		SDL_WriteIO(f,&player,sizeof(player_t));
 		player.destx=0;
 		player.desty=0;
 		SaveGuys(f.get());
@@ -805,7 +805,7 @@ PauseMenuResult UpdatePauseMenu(MGLDraw *mgl)
 	}
 
 	HandlePauseKeyPresses(mgl);
-	if(lastKey==27 || (gamepadTap & ((1 << SDL_CONTROLLER_BUTTON_BACK) | (1 << SDL_CONTROLLER_BUTTON_B)))) // hit ESC to exit pause menu
+	if(lastKey==27 || (gamepadTap & ((1 << SDL_GAMEPAD_BUTTON_BACK) | (1 << SDL_GAMEPAD_BUTTON_EAST)))) // hit ESC to exit pause menu
 	{
 		if (cursor == CURSOR_SAVE)
 		{

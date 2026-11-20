@@ -11,6 +11,7 @@
 #include "message.h"
 #include "appdata.h"
 #include "ioext.h"
+#include "log.h"
 
 mfont_t  *gameFont[3]={NULL,NULL,NULL};
 MGLDraw  *mgl=NULL;
@@ -136,59 +137,62 @@ void LoadText(const char *nm,byte mode)
 
 TASK(void) ShowImageOrFlic(const char *str,byte nosnd,byte mode)
 {
-	int speed;
-
-	char *fname;
-	char *other;
 	char nm[64];
-
 	std::string copy = str;
 
-	fname=strtok(copy.data(),",\n");
+	char *fname = strtok(copy.data(),",\n");
 	if(!fname)
 		CO_RETURN;
 
-	other=strtok(NULL,",\n");
+	char *other = strtok(NULL,",\n");
+
+	const char* extension = "";
+	size_t dot = std::string_view(fname).rfind('.');
+	if (dot != std::string::npos)
+	{
+		extension = &fname[dot];
+	}
 
 	// BMP loading
-	if((fname[strlen(fname)-3]=='b' || fname[strlen(fname)-3]=='B') &&
-	   (fname[strlen(fname)-2]=='m' || fname[strlen(fname)-2]=='M') &&
-	   (fname[strlen(fname)-1]=='p' || fname[strlen(fname)-1]=='P'))
+	if (!strcasecmp(extension, ".bmp") || !strcasecmp(extension, ".png"))
 	{
 		EnterPictureDisplay();
 		if(!nosnd)
 			MakeNormalSound(SND_MESSAGE);
 		sprintf(nm,"user/%s",fname);
 		GetDisplayMGL()->LoadBMPResize(nm);
-		CO_RETURN;
 	}
-	if((fname[strlen(fname)-3]=='t' || fname[strlen(fname)-3]=='T') &&
-	   (fname[strlen(fname)-2]=='x' || fname[strlen(fname)-2]=='X') &&
-	   (fname[strlen(fname)-1]=='t' || fname[strlen(fname)-1]=='T'))
+	else if (!strcasecmp(extension, ".txt"))
 	{
 		EnterPictureDisplay();
 		if(!nosnd)
 			MakeNormalSound(SND_MESSAGE);
 		sprintf(nm,"user/%s",fname);
 		LoadText(nm,mode);
-		CO_RETURN;
 	}
-
-	if(other)
-		speed=atoi(other);
-	else
-		speed=60;
-
-	sprintf(nm,"user/%s",fname);
-
-	AWAIT FLI_play(nm,0,speed,mgl);
-	mgl->LoadBMP("graphics/title.bmp");
-	RestoreGameplayGfx();
-
-	if(!editing && (verified || shopping))
+	else if (!strcasecmp(extension, ".flc"))
 	{
-		SeeMovie(fname);
-		GoalPurchase();
+		int speed;
+		if(other)
+			speed=atoi(other);
+		else
+			speed=60;
+
+		sprintf(nm,"user/%s",fname);
+
+		AWAIT FLI_play(nm,0,speed,mgl);
+		mgl->LoadBMP("graphics/title.bmp");
+		RestoreGameplayGfx();
+
+		if(!editing && (verified || shopping))
+		{
+			SeeMovie(fname);
+			GoalPurchase();
+		}
+	}
+	else
+	{
+		LogError("Unknown Show Pic/Movie type \"%s\" in \"%s\"", extension, fname);
 	}
 }
 
@@ -463,77 +467,18 @@ void LightningDraw(int x,int y,int x2,int y2,byte bright,char range)
 //---------------------------------------------------------------------------------------
 // from here on out it's class DISPLAYLIST
 
-DisplayList::DisplayList(void)
+DisplayList::DisplayList()
+	: nextfree(0)
 {
-	ClearList();
-}
-
-DisplayList::~DisplayList(void)
-{
-	// nothin
-}
-
-int DisplayList::GetOpenSlot(void)
-{
-	if (nextfree >= MAX_DISPLAY_OBJS)
-		return -1;
-	return nextfree++;
-}
-
-void DisplayList::HookIn(int me)
-{
-	int i;
-
-	if(head==-1)
-	{
-		head=me;
-		dispObj[me].prev=-1;
-		dispObj[me].next=-1;
-		return;
-	}
-	else
-	{
-		// shadows go on the head of the list always, drawn before anything else
-		// (and the order of shadows doesn't matter, of course)
-		if(dispObj[me].flags&DISPLAY_SHADOW)
-		{
-			dispObj[me].next=head;
-			dispObj[head].prev=me;
-			dispObj[me].prev=-1;
-			head=me;
-			return;
-		}
-
-		i=head;
-		while(i!=-1)
-		{
-			if((!(dispObj[i].flags&DISPLAY_SHADOW)) &&
-				(dispObj[i].y>dispObj[me].y || (dispObj[i].y==dispObj[me].y && dispObj[i].z>dispObj[me].z)))
-			{
-				dispObj[me].prev=dispObj[i].prev;
-				dispObj[me].next=i;
-				if(dispObj[me].prev!=-1)
-					dispObj[dispObj[me].prev].next=me;
-				dispObj[i].prev=me;
-				if(head==i)
-					head=me;
-				return;
-			}
-			if(dispObj[i].next==-1)
-			{
-				dispObj[i].next=me;
-				dispObj[me].prev=i;
-				dispObj[me].next=-1;
-				return;
-			}
-			i=dispObj[i].next;
-		}
-		return; // this would be bad, but hopefully can't occur
-	}
 }
 
 bool DisplayList::DrawSprite(int x,int y,int z,int z2,word hue,char bright,const sprite_t *spr,DisplayFlags flags)
 {
+	if (nextfree >= MAX_DISPLAY_OBJS)
+	{
+		return false;
+	}
+
 	SDL_Rect rect;
 	if (!spr || spr==(sprite_t*)1 || (flags&(DISPLAY_WALLTILE|DISPLAY_ROOFTILE)))
 	{
@@ -562,16 +507,12 @@ bool DisplayList::DrawSprite(int x,int y,int z,int z2,word hue,char bright,const
 	// If the rect is totally offscreen, don't add it to the display list.
 	SDL_Rect screenRect = { scrx - mgl->GetWidth()/2, scry - mgl->GetHeight()/2, mgl->GetWidth(), mgl->GetHeight() };
 	SDL_Rect intersection;
-	if (!SDL_IntersectRect(&rect, &screenRect, &intersection))
+	if (!SDL_GetRectIntersection(&rect, &screenRect, &intersection))
 	{
 		return true;
 	}
 
-	// Actually insert.
-	int i=GetOpenSlot();
-	if(i==-1)
-		return false;
-
+	int i = nextfree++;
 	dispObj[i].hue=hue;
 	dispObj[i].bright=bright;
 	dispObj[i].flags=flags;
@@ -582,31 +523,42 @@ bool DisplayList::DrawSprite(int x,int y,int z,int z2,word hue,char bright,const
 	dispObj[i].z2=z2;
 	if(dispObj[i].flags&(DISPLAY_WALLTILE|DISPLAY_ROOFTILE))
 		memcpy(dispObj[i].light,(const char*)dispObj[i].spr,9);
-	HookIn(i);
+
 	return true;
 }
 
-void DisplayList::ClearList(void)
+void DisplayList::ClearList()
 {
-	int i;
-
-	for(i=0;i<MAX_DISPLAY_OBJS;i++)
-	{
-		dispObj[i].prev=-1;
-		dispObj[i].next=-1;
-		dispObj[i].flags={};
-	}
-	head=-1;
-	nextfree=0;
+	nextfree = 0;
 }
 
-void DisplayList::Render(void)
+bool operator<(const DisplayObj& lhs, const DisplayObj& rhs)
 {
-	int i;
+	if ((lhs.flags & DISPLAY_SHADOW) != (rhs.flags & DISPLAY_SHADOW))
+	{
+		// shadows go on the head of the list always, drawn before anything else
+		// (and the order of shadows doesn't matter, of course)
+		return (lhs.flags & DISPLAY_SHADOW) > (rhs.flags & DISPLAY_SHADOW);
+	}
+	else if (lhs.y != rhs.y)
+	{
+		return lhs.y < rhs.y;
+	}
+	else if (lhs.z != rhs.z)
+	{
+		return lhs.z < rhs.z;
+	}
+	else
+	{
+		return false;
+	}
+}
 
-	i=head;
+void DisplayList::Render()
+{
+	std::stable_sort(&dispObj[0], &dispObj[nextfree]);
 
-	while(i!=-1)
+	for(int i = 0; i < nextfree; ++i)
 	{
 		if((dispObj[i].flags&DISPLAY_DRAWME) && (dispObj[i].spr))
 		{
@@ -682,7 +634,6 @@ void DisplayList::Render(void)
 				}
 			}
 		}
-		i=dispObj[i].next;
 	}
 }
 

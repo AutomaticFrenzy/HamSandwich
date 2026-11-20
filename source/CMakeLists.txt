@@ -11,12 +11,11 @@ elseif(EMSCRIPTEN)
 		--use-preload-cache
 		-sENVIRONMENT=web
 		-sFORCE_FILESYSTEM=1
-		-sEXTRA_EXPORTED_RUNTIME_METHODS=['ENV']
+		-sEXPORTED_RUNTIME_METHODS=['ENV']
 	)
 	# Coroutine support
 	add_compile_options(
 		-DUSE_COROUTINES
-		-fcoroutines-ts
 		-Werror=unused-result
 	)
 elseif(ANDROID)
@@ -26,7 +25,7 @@ elseif(ANDROID)
 	)
 endif()
 
-if(${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
+if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
 	link_libraries(ws2_32 winmm)
 endif()
 
@@ -39,10 +38,8 @@ add_subdirectory("ham")
 add_subdirectory("aegea")
 
 # For games only, use -no-pie so that the executables are double-clickable in Thunar.
-if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
-	add_link_options(
-		-no-pie
-	)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+	string(APPEND CMAKE_EXE_LINKER_FLAGS " -no-pie")
 endif()
 
 # -----------------------------------------------------------------------------

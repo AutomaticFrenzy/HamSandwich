@@ -1,10 +1,11 @@
 #ifndef HAM_EXTERN_H
 #define HAM_EXTERN_H
 
+#include "jamultypes.h"
 #include "owned_sdl.h"
 
 // Callbacks that games may provide to Ham.
-extern struct HamExtern
+extern HAM_API struct HamExtern
 {
 	void (*AfterFlip)();
 
@@ -13,7 +14,7 @@ extern struct HamExtern
 	void (*ChooseNextSong)();
 
 	// ---- jamulsound ----
-	owned::SDL_RWops (*SoundLoadOverride)(int);
+	owned::SDL_IOStream (*SoundLoadOverride)(int);
 } g_HamExtern;
 
 #endif  // HAM_EXTERN_H

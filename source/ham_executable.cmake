@@ -187,7 +187,13 @@ function(HamSandwich_add_executable target_name)
 
 		target_link_libraries("${target_name}" idbfs.js)
 		if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-			target_link_options("${target_name}" PRIVATE --emrun)
+			target_link_options("${target_name}" PRIVATE --emrun -gsource-map)
+			install(
+				FILES
+				"${CMAKE_CURRENT_BINARY_DIR}/${target_name}.wasm.map"
+				DESTINATION "."
+				COMPONENT "${target_name}/web"
+			)
 		endif()
 
 		install(
@@ -244,14 +250,13 @@ function(HamSandwich_add_executable target_name)
 					"${CMAKE_COMMAND}" -E env
 					"EMSCRIPTEN_ROOT_PATH=${EMSCRIPTEN_ROOT_PATH}"
 					"${python}"
-					"${CMAKE_SOURCE_DIR}/tools/emscripten/file_packager_deps.py"
+					"${EMSCRIPTEN_ROOT_PATH}/tools/file_packager.py"
 					"${data}"
+					"--depfile=${data_d}"
 					"--js-output=${data_js}"
 					"--from-emcc"
 					"--preload"
 					"${CMAKE_SOURCE_DIR}/assets/${target_name}@"
-				DEPENDS
-					"${CMAKE_SOURCE_DIR}/tools/emscripten/file_packager_deps.py"
 				DEPFILE "${data_d}"
 				VERBATIM
 			)
@@ -273,7 +278,8 @@ function(HamSandwich_add_executable target_name)
 			OPTIONAL
 			DESTINATION "assets"
 			COMPONENT "${target_name}/assets"
-			PATTERN "Thumbs.db*" EXCLUDE
+			PATTERN "Thumbs.db" EXCLUDE
+			PATTERN "Thumbs.db:encryptable" EXCLUDE
 		)
 	endif()
 endfunction()
@@ -295,4 +301,16 @@ else()
 	endfunction()
 	function(msvc_compile_options)
 	endfunction()
+endif()
+
+# Emscripten source map links
+if(EMSCRIPTEN AND CMAKE_BUILD_TYPE STREQUAL "Debug")
+	install(
+		CODE [[
+			file(CREATE_LINK "${CMAKE_SOURCE_DIR}/source" "${CMAKE_INSTALL_PREFIX}/source" SYMBOLIC)
+			file(CREATE_LINK "${CMAKE_SOURCE_DIR}/external" "${CMAKE_INSTALL_PREFIX}/external" SYMBOLIC)
+			file(CREATE_LINK "${CMAKE_SOURCE_DIR}/external/emsdk/upstream" "${CMAKE_INSTALL_PREFIX}/emsdk" SYMBOLIC)
+		]]
+		COMPONENT generic/web
+	)
 endif()

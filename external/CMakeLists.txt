@@ -18,7 +18,7 @@ function(install_as_soname component)
 endfunction()
 
 include("zlib.cmake")
-include("SDL2.cmake")
+include("SDL3.cmake")
 include("steamworks_sdk.cmake")
 add_subdirectory("strnatcmp" EXCLUDE_FROM_ALL)
 add_subdirectory("lzma1900" EXCLUDE_FROM_ALL)
@@ -29,7 +29,7 @@ include("jtjson.cmake")
 
 if(NOT EMSCRIPTEN AND NOT ANDROID)
 	# Launcher and dev tools dependencies.
-	add_subdirectory("tinyfiledialogs")
+	#include("jtjson.cmake")
 	include("imgui.cmake")
 	include("curl.cmake")
 endif()

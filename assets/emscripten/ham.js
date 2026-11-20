@@ -54,11 +54,6 @@ var HamSandwich = (function () {
 	}
 
 	function fsInit() {
-		// At preRun, after HEAP8 has been initialized, push more dependencies:
-		InstallerUpload.preInit();
-
-		// Init FS after HEAP8 exists but before doing anything w/ FS, else
-		// stdin/stdout/stderr will get the wrong file descriptors.
 		FS.init();
 		FS.mkdir('/appdata');
 		appdataMount = FS.mount(IDBFS, {}, '/appdata').mount;
@@ -66,13 +61,13 @@ var HamSandwich = (function () {
 		installerMount = FS.mount(IDBFS, {}, '/installers').mount;
 		FS.syncfs(true, fsInitCallback);
 
-		Module.ENV['HSW_APPDATA'] = 'appdata/' + HamSandwich.metadata.appdataName;
+		ENV['HSW_APPDATA'] = 'appdata/' + HamSandwich.metadata.appdataName;
 	}
 
 	var assetCounter = 0;
 	function pushAssets(mountpoint) {
 		mountpoint = mountpoint || '';
-		Module.ENV['HSW_ASSETS_' + (assetCounter++)] = Array.prototype.join.call(arguments, '@');
+		ENV['HSW_ASSETS_' + (assetCounter++)] = Array.prototype.join.call(arguments, '@');
 	}
 
 	// ------------------------------------------------------------
@@ -226,7 +221,7 @@ var InstallerUpload = (function () {
 				HamSandwich.fsSync({ installers: true });
 			}
 			if (!installer.optional) {
-				Module.removeRunDependency('installer ' + fname);
+				removeRunDependency('installer ' + fname);
 			}
 		} else {
 			status[fname].statusTd.innerText = 'Bad';
@@ -238,7 +233,7 @@ var InstallerUpload = (function () {
 	function preInit() {
 		for (var installer of meta) {
 			if (!installer.optional) {
-				Module.addRunDependency('installer ' + installer.filename);
+				addRunDependency('installer ' + installer.filename);
 			}
 		}
 	}
@@ -386,10 +381,19 @@ var Module = (function() {
 				Module.requestFullscreen = function() {
 					Module.canvas.requestFullscreen();
 				};
-				setWindowTitle = function(title) {
-					HamSandwich.setWindowTitle(title);
-					canvas.style.opacity = '1';
-					canvas.style.pointerEvents = 'auto';
+				var getWasmImports = window.getWasmImports;
+				window.getWasmImports = function() {
+					var original = getWasmImports();
+					// Work around 'env' and 'emscripten_set_window_title' being optimized out
+					var env = Object.values(original)[0];
+					var [key,] = Object.entries(env).find(([k, v]) => v.name === '_emscripten_set_window_title');
+					env[key] = function (title) {
+						title = UTF8ToString(title);
+						HamSandwich.setWindowTitle(title);
+						canvas.style.opacity = '1';
+						canvas.style.pointerEvents = 'auto';
+					};
+					return original;
 				};
 				quit_ = function(code) {
 					if (!code) {
@@ -408,6 +412,7 @@ var Module = (function() {
 		],
 
 		preRun: [
+			InstallerUpload.preInit,
 			HamSandwich.fsInit,
 		],
 

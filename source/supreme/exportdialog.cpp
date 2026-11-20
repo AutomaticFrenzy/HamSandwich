@@ -83,7 +83,9 @@ namespace
 		void SaveWorkshopDataFile()
 		{
 			auto f = AppdataOpen_Write(workshopDataFilename.c_str());
-			SDL_RWprintf(f.get(), "workshop_item_id=%" PRIu64 "\n", workshopItemId);
+			SDL_IOprintf(f.get(), "workshop_item_id=%" PRIu64 "\n", workshopItemId);
+			f.reset();
+			AppdataSync();
 		}
 
 		void CreateCallback(CreateItemResult_t* result, bool)
@@ -297,23 +299,23 @@ static bool BadCharacter(char ch)
 static void SaveReqFilesTxt()
 {
 	auto f = AppdataOpen_Write("req_files.txt");
-	SDL_RWprintf(f.get(), "# World: %s\n", title.c_str());
+	SDL_IOprintf(f.get(), "# World: %s\n", title.c_str());
 	for (const auto& file : files)
 	{
 		switch (file.kind)
 		{
 			case FileKind::Root:
-				SDL_RWprintf(f.get(), "# Root: %s\n", file.filename.c_str());
+				SDL_IOprintf(f.get(), "# Root: %s\n", file.filename.c_str());
 				break;
 			case FileKind::DependencyMissing:
-				SDL_RWprintf(f.get(), "%s    # MISSING!\n", file.filename.c_str());
+				SDL_IOprintf(f.get(), "%s    # MISSING!\n", file.filename.c_str());
 				break;
 			case FileKind::DependencyAppdata:
 			case FileKind::DependencyOtherAddon:
-				SDL_RWprintf(f.get(), "%s\n", file.filename.c_str());
+				SDL_IOprintf(f.get(), "%s\n", file.filename.c_str());
 				break;
 			case FileKind::DependencyBaseGame:
-				SDL_RWprintf(f.get(), "# Base game: %s\n", file.filename.c_str());
+				SDL_IOprintf(f.get(), "# Base game: %s\n", file.filename.c_str());
 				break;
 			default:
 				break;
@@ -366,7 +368,7 @@ static void SaveZip()
 			if (err != ZIP_OK)
 				break;
 
-			owned::SDL_RWops rw = AppdataOpen(file.filename.c_str());
+			owned::SDL_IOStream rw = AppdataOpen(file.filename.c_str());
 			if (!rw)
 			{
 				err = 10;
@@ -374,7 +376,7 @@ static void SaveZip()
 			}
 			while (true)
 			{
-				size_t read = SDL_RWread(rw, buf, 1, BUFSIZE);
+				size_t read = SDL_ReadIO(rw, buf, BUFSIZE);
 				if (read == 0)
 					break;
 				err = zipWriteInFileInZip(zf, buf, read);
@@ -456,7 +458,7 @@ static std::string PrepareWorkshopFolder()
 				return "";
 			}
 
-			owned::SDL_RWops rw = AppdataOpen(file.filename.c_str());
+			owned::SDL_IOStream rw = AppdataOpen(file.filename.c_str());
 			if (!rw)
 			{
 				LogError("Workshop: Failed to open for reading: %s", file.filename.c_str());
@@ -465,7 +467,7 @@ static std::string PrepareWorkshopFolder()
 
 			while (true)
 			{
-				size_t read = SDL_RWread(rw, buf, 1, BUFSIZE);
+				size_t read = SDL_ReadIO(rw, buf, BUFSIZE);
 				if (read == 0)
 					break;
 				if (fwrite(buf, 1, read, f) < read)
@@ -515,7 +517,7 @@ static std::string PrepareWorkshopPreview()
 	}
 
 	mgl->ClearScreen();
-	SDL_Log("Steam Workshop preview file: %s", pngFilename.c_str());
+	LogInfo("Steam Workshop preview file: %s", pngFilename.c_str());
 	return pngFilename;
 }
 
