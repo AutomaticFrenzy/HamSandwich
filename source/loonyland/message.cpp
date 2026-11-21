@@ -1,8 +1,20 @@
 #include "message.h"
 #include "sound.h"
+#include <string_view>
+#include "string_extras.h"
 
-message_t bigMessage;
-message_t message;
+struct message_t
+{
+	int x,y;
+	int dy;
+	int timer;
+	int bright;
+	char brightDir;
+	char msg[64];
+};
+
+static message_t bigMessage;
+static message_t message;
 
 void InitMessage(void)
 {
@@ -10,9 +22,9 @@ void InitMessage(void)
 	message.msg[0]='\0';
 }
 
-void NewBigMessage(const char *txt,int time)
+void NewBigMessage(std::string_view txt,int time)
 {
-	strncpy(bigMessage.msg,txt,32);
+	ham_strcpy(bigMessage.msg, txt);
 	bigMessage.x=320-GetStrLength(bigMessage.msg,2)/2;
 	bigMessage.y=-100;
 	bigMessage.dy=0;
@@ -21,9 +33,9 @@ void NewBigMessage(const char *txt,int time)
 	bigMessage.brightDir=2;
 }
 
-void NewMessage(const char *txt,int time)
+void NewMessage(std::string_view txt,int time)
 {
-	strncpy(message.msg,txt,32);
+	ham_strcpy(message.msg, txt);
 	message.x=2;
 	message.y=484;
 	message.dy=-13;
@@ -32,9 +44,9 @@ void NewMessage(const char *txt,int time)
 	message.brightDir=2;
 }
 
-void NoRepeatNewMessage(const char *txt,int time)
+void NoRepeatNewMessage(std::string_view txt,int time)
 {
-	if(!strncmp(message.msg,txt,32))
+	if(message.msg == txt)
 		return;	// don't reset if showing the same message
 	NewMessage(txt,time);
 }

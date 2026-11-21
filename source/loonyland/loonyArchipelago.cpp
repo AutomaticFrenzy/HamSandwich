@@ -13,7 +13,6 @@
 #include "quest.h"
 #include "options.h"
 #include "badge.h"
- 
 
 static std::unique_ptr<ArchipelagoClient> ap;
 
@@ -754,7 +753,7 @@ void UpdateArchipelago()
 				text += ap->item_name(*message);
 				text += " from ";
 				text += ap->slot_player_alias(message->item.player);
-				NewMessage(text.c_str(), MESSAGE_TIME);
+				NewMessage(text, MESSAGE_TIME);
 				messageCooldown = MESSAGE_TIME;
 			}
 			else if (message->item.player == ap->player_id())
@@ -764,7 +763,7 @@ void UpdateArchipelago()
 				text += ap->item_name(*message);
 				text += " to ";
 				text += ap->slot_player_alias(message->receiving);
-				NewMessage(text.c_str(), MESSAGE_TIME);
+				NewMessage(text, MESSAGE_TIME);
 				messageCooldown = MESSAGE_TIME;
 			}
 		}
@@ -802,9 +801,9 @@ void GetRoomInfo() {
 	const auto& arr = ap->room_info("slot_data")["entrance_rando_data"].getArray();
 	for (const auto& elem : arr) {
 		if (!elem.isArray() || elem.getArray().size() != 2) continue;         // validate
-		int from = elem[0].getNumber();                              
-		int to = elem[1].getNumber();                             
-		entrance_pairings[from] = to;         
+		int from = elem[0].getNumber();
+		int to = elem[1].getNumber();
+		entrance_pairings[from] = to;
 	}
 
 	opt.difficulty = apSlotData.difficulty;
